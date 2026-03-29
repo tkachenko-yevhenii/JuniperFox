@@ -46,11 +46,14 @@ jobs:
           name: .net-app
 
       # Publish profile avoids OIDC; fix AADSTS70021 when federated credentials are missing.
+      # app-name MUST match publish profile userName without leading $ (often the long hostname
+      # stem, e.g. dev-juniperfox-ejc2ayexevbgesg7 — not only the portal resource name).
+      # azure/webapps-deploy always defaults slot-name to "production"; error text still mentions it.
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
-          app-name: "dev-juniperfox"
+          app-name: "dev-juniperfox-ejc2ayexevbgesg7"
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
           package: .
           
