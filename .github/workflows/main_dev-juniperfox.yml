@@ -64,16 +64,23 @@ jobs:
           import xml.etree.ElementTree as ET
 
           root = ET.fromstring(os.environ["PUBLISH_PROFILE"])
-          prof = None
-          for p in root.iter():
-              if not p.tag.endswith("publishProfile"):
-                  continue
-              url = (p.get("publishUrl") or "").lower()
-              if "scm" in url and "ftp" not in url:
-                  prof = p
-                  break
+
+          def scm_profiles():
+              for p in root.iter():
+                  if not p.tag.endswith("publishProfile"):
+                      continue
+                  url = (p.get("publishUrl") or "").lower()
+                  if "scm" in url and "ftp" not in url:
+                      yield p
+
+          profiles = list(scm_profiles())
+          # Prefer ZipDeploy for /api/zipdeploy; MSDeploy is a fallback (same Kudu host).
+          prof = next((p for p in profiles if (p.get("publishMethod") or "") == "ZipDeploy"), None)
+          if prof is None:
+              prof = next(iter(profiles), None)
           if prof is None:
               raise SystemExit("No SCM publishProfile found (expected publishUrl with .scm.)")
+          print("Using publishMethod=", prof.get("publishMethod"))
 
           host = (prof.get("publishUrl") or "").split(":")[0].strip()
           user = prof.get("userName") or ""
