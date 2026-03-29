@@ -228,4 +228,22 @@ public sealed class ProductListsController : ControllerBase
             IsPurchased = item.IsPurchased,
         });
     }
+
+    [HttpDelete("{listId:guid}/items/{itemId:guid}")]
+    public async Task<IActionResult> DeleteItem(Guid listId, Guid itemId, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        var list = await _db.ProductLists.FirstOrDefaultAsync(l => l.Id == listId && l.OwnerId == userId, cancellationToken);
+        if (list is null)
+            return NotFound();
+
+        var item = await _db.ProductListItems.FirstOrDefaultAsync(i => i.Id == itemId && i.ProductListId == listId, cancellationToken);
+        if (item is null)
+            return NotFound();
+
+        _db.ProductListItems.Remove(item);
+        await _db.SaveChangesAsync(cancellationToken);
+        await _hub.Clients.Group(ListHubGroups.ForList(listId)).SendAsync("ListChanged", listId, cancellationToken);
+        return NoContent();
+    }
 }

@@ -8,60 +8,110 @@
 
 <PageTitle>@(_detail?.Title ?? "List") — JuniperFox</PageTitle>
 
-@if (!string.IsNullOrEmpty(_error))
+@if (_toastVisible)
 {
-    <p class="jf-error">@_error</p>
+    <div class="jf-toast-host" role="status" aria-live="polite">
+        <div class="jf-toast">
+            <span class="jf-toast-msg">@_toastMessage</span>
+            <div class="jf-toast-actions">
+                <button type="button" class="jf-btn jf-btn-ghost" @onclick="UndoDeleteAsync">Undo</button>
+            </div>
+        </div>
+    </div>
 }
 
 @if (_detail is null)
 {
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <p class="jf-error">@_error</p>
+    }
     <p class="jf-muted">Loading…</p>
 }
 else
 {
-    <p style="margin-bottom: 0.75rem;">
-        <NavLink href="/lists" class="jf-muted" style="font-size: 0.875rem;">← Back to lists</NavLink>
-    </p>
-    <h1>@_detail.Title</h1>
-
-    <h2>Items</h2>
-    @if (_detail.Items.Count == 0)
-    {
-        <p class="jf-muted">Nothing here yet — add an item below.</p>
-    }
-    else
-    {
-        <div class="jf-stack-tight" style="margin-bottom: 1.25rem;">
-            @foreach (var item in _detail.Items)
+    <div class="jf-list-detail-page">
+        <div class="jf-list-detail-dock">
+            <button type="button"
+                    class="jf-list-detail-add-toggle"
+                    @onclick="@(() => _addPanelOpen = !_addPanelOpen)"
+                    aria-expanded="@_addPanelOpen">
+                <span>@(_addPanelOpen ? "Hide add form" : "Add item")</span>
+                <svg class="jf-list-detail-add-chevron @(_addPanelOpen ? "jf-list-detail-add-chevron--open" : null)"
+                     viewBox="0 0 24 24"
+                     fill="none"
+                     stroke="currentColor"
+                     stroke-width="2"
+                     aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                </svg>
+            </button>
+            @if (_addPanelOpen)
             {
-                <label @key="item.Id" class="jf-list-row jf-item-row @(item.IsPurchased ? "jf-item-purchased" : null)">
-                    <input type="checkbox"
-                           class="jf-item-check"
-                           checked="@item.IsPurchased"
-                           disabled="@(_busyItemId == item.Id)"
-                           @onchange="e => OnItemCheckedChangedAsync(item, e)" />
-                    <span class="jf-item-label">
-                        @item.Name
-                        @if (item.Quantity is { } q)
-                        {
-                            <span class="jf-muted"> ×@q</span>
-                        }
-                    </span>
-                </label>
+                <div id="list-add-form" class="jf-card jf-list-detail-add-form">
+                    <div class="jf-list-detail-add-inline">
+                        <div class="jf-field">
+                            <label>Item</label>
+                            <InputText class="jf-input" @bind-Value="_itemName" placeholder="Name" />
+                        </div>
+                        <div class="jf-field jf-field-qty">
+                            <label title="Optional">Qty</label>
+                            <InputNumber class="jf-input" @bind-Value="_quantity" />
+                        </div>
+                    </div>
+                    <button type="button" class="jf-btn jf-btn-primary jf-list-detail-add-submit" @onclick="AddItemAsync">Add</button>
+                </div>
             }
         </div>
-    }
 
-    <div class="jf-card jf-stack-tight">
-        <div class="jf-field">
-            <label>Item</label>
-            <InputText class="jf-input" @bind-Value="_itemName" placeholder="Name" />
+        <div class="jf-list-detail-scroll">
+            @if (!string.IsNullOrEmpty(_error))
+            {
+                <p class="jf-error">@_error</p>
+            }
+            <p style="margin-bottom: 0.75rem;">
+                <NavLink href="/lists" class="jf-muted" style="font-size: 0.875rem;">← Back to lists</NavLink>
+            </p>
+            <h1>@_detail.Title</h1>
+
+            <h2>Items</h2>
+            @if (_detail.Items.Count == 0)
+            {
+                <p class="jf-muted">Nothing here yet — use the form above.</p>
+            }
+            else
+            {
+                <div class="jf-stack-tight" style="margin-bottom: 0.5rem;">
+                    @foreach (var item in _detail.Items)
+                    {
+                        <div @key="item.Id"
+                             class="jf-list-row jf-item-row @(item.IsPurchased ? "jf-item-purchased" : null) @(_busyItemId == item.Id ? "jf-item-row-busy" : null)"
+                             role="button"
+                             tabindex="0"
+                             @onclick="() => TogglePurchasedAsync(item)"
+                             @onkeydown="e => OnRowKeyDownAsync(item, e)">
+                            <span class="jf-item-label">
+                                @item.Name
+                                @if (item.Quantity is { } q)
+                                {
+                                    <span class="jf-muted"> ×@q</span>
+                                }
+                            </span>
+                            <button type="button"
+                                    class="jf-item-delete"
+                                    title="Delete"
+                                    aria-label="Delete item"
+                                    @onclick:stopPropagation="true"
+                                    @onclick="() => DeleteItemAsync(item)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                                </svg>
+                            </button>
+                        </div>
+                    }
+                </div>
+            }
         </div>
-        <div class="jf-field">
-            <label>Quantity (optional)</label>
-            <InputNumber class="jf-input" @bind-Value="_quantity" />
-        </div>
-        <button type="button" class="jf-btn jf-btn-primary" style="width: 100%;" @onclick="AddItemAsync">Add</button>
     </div>
 }
 
@@ -75,6 +125,14 @@ else
     private Guid? _busyItemId;
     private HubConnection? _hubConnection;
     private bool _isLoading;
+
+    private bool _toastVisible;
+    private string _toastMessage = string.Empty;
+    private string? _undoName;
+    private int? _undoQuantity;
+    private CancellationTokenSource? _toastCts;
+
+    private bool _addPanelOpen = true;
 
     protected override async Task OnInitializedAsync()
     {
@@ -151,12 +209,18 @@ else
         }
     }
 
-    private async Task OnItemCheckedChangedAsync(ProductListItemDto item, ChangeEventArgs e)
+    private async Task OnRowKeyDownAsync(ProductListItemDto item, KeyboardEventArgs e)
     {
-        if (e.Value is not bool nextValue || nextValue == item.IsPurchased)
+        if (e.Key == "Enter" || e.Key == " ")
+            await TogglePurchasedAsync(item);
+    }
+
+    private async Task TogglePurchasedAsync(ProductListItemDto item)
+    {
+        if (_busyItemId.HasValue)
             return;
 
-        await SetPurchasedAsync(item.Id, nextValue);
+        await SetPurchasedAsync(item.Id, !item.IsPurchased);
     }
 
     private async Task SetPurchasedAsync(Guid itemId, bool isPurchased)
@@ -188,6 +252,110 @@ else
         {
             _busyItemId = null;
         }
+    }
+
+    private async Task DeleteItemAsync(ProductListItemDto item)
+    {
+        if (_busyItemId.HasValue)
+            return;
+
+        _busyItemId = item.Id;
+        _error = null;
+        var name = item.Name;
+        var qty = item.Quantity;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("Api");
+            var response = await client.DeleteAsync($"api/product-lists/{Id}/items/{item.Id}");
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = "Could not delete item.";
+                return;
+            }
+
+            await LoadAsync();
+            await ShowDeletedToastAsync(name, qty);
+        }
+        finally
+        {
+            _busyItemId = null;
+        }
+    }
+
+    private async Task ShowDeletedToastAsync(string name, int? quantity)
+    {
+        _toastCts?.Cancel();
+        _toastCts?.Dispose();
+        _toastCts = new CancellationTokenSource();
+        _undoName = name;
+        _undoQuantity = quantity;
+        _toastMessage = $"\"{name}\" removed.";
+        _toastVisible = true;
+        await InvokeAsync(StateHasChanged);
+
+        _ = DismissToastAfterDelayAsync(_toastCts.Token);
+    }
+
+    private async Task DismissToastAfterDelayAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(3000, token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        await InvokeAsync(() =>
+        {
+            _toastVisible = false;
+            _undoName = null;
+            _undoQuantity = null;
+            StateHasChanged();
+        });
+    }
+
+    private async Task UndoDeleteAsync()
+    {
+        if (_undoName is null)
+            return;
+
+        _toastCts?.Cancel();
+        var name = _undoName;
+        var qty = _undoQuantity;
+        _toastVisible = false;
+        _undoName = null;
+        _undoQuantity = null;
+        await InvokeAsync(StateHasChanged);
+
+        _error = null;
+        var client = HttpClientFactory.CreateClient("Api");
+        var response = await client.PostAsJsonAsync(
+            $"api/product-lists/{Id}/items",
+            new AddProductListItemRequest { Name = name, Quantity = qty });
+
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _error = "Could not restore item.";
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        await LoadAsync();
     }
 
     private async Task AddItemAsync()
@@ -224,6 +392,10 @@ else
 
     public async ValueTask DisposeAsync()
     {
+        _toastCts?.Cancel();
+        _toastCts?.Dispose();
+        _toastCts = null;
+
         if (_hubConnection is null)
             return;
 
