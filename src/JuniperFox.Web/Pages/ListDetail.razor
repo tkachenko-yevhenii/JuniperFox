@@ -6,7 +6,7 @@
 @inject NavigationManager Navigation
 @inject LastOpenedListStorage LastOpenedList
 
-<PageTitle>@(_detail?.Title ?? "Список") — JuniperFox</PageTitle>
+<PageTitle>@(_detail?.Title ?? "List") — JuniperFox</PageTitle>
 
 @if (!string.IsNullOrEmpty(_error))
 {
@@ -15,19 +15,19 @@
 
 @if (_detail is null)
 {
-    <p class="jf-muted">Загрузка…</p>
+    <p class="jf-muted">Loading…</p>
 }
 else
 {
     <p style="margin-bottom: 0.75rem;">
-        <NavLink href="/lists" class="jf-muted" style="font-size: 0.875rem;">← К спискам</NavLink>
+        <NavLink href="/lists" class="jf-muted" style="font-size: 0.875rem;">← Back to lists</NavLink>
     </p>
     <h1>@_detail.Title</h1>
 
-    <h2>Позиции</h2>
+    <h2>Items</h2>
     @if (_detail.Items.Count == 0)
     {
-        <p class="jf-muted">Пока пусто — добавьте товар ниже.</p>
+        <p class="jf-muted">Nothing here yet — add an item below.</p>
     }
     else
     {
@@ -54,14 +54,14 @@ else
 
     <div class="jf-card jf-stack-tight">
         <div class="jf-field">
-            <label>Товар</label>
-            <InputText class="jf-input" @bind-Value="_itemName" placeholder="Название" />
+            <label>Item</label>
+            <InputText class="jf-input" @bind-Value="_itemName" placeholder="Name" />
         </div>
         <div class="jf-field">
-            <label>Количество (необязательно)</label>
+            <label>Quantity (optional)</label>
             <InputNumber class="jf-input" @bind-Value="_quantity" />
         </div>
-        <button type="button" class="jf-btn jf-btn-primary" style="width: 100%;" @onclick="AddItemAsync">Добавить</button>
+        <button type="button" class="jf-btn jf-btn-primary" style="width: 100%;" @onclick="AddItemAsync">Add</button>
     </div>
 }
 
@@ -108,7 +108,7 @@ else
 
             if (!response.IsSuccessStatusCode)
             {
-                _error = "Не удалось загрузить список.";
+                _error = "Could not load list.";
                 return;
             }
 
@@ -178,7 +178,7 @@ else
 
             if (!response.IsSuccessStatusCode)
             {
-                _error = "Не удалось обновить позицию.";
+                _error = "Could not update item.";
                 return;
             }
 
@@ -213,7 +213,7 @@ else
 
         if (!response.IsSuccessStatusCode)
         {
-            _error = "Не удалось добавить позицию.";
+            _error = "Could not add item.";
             return;
         }
 

@@ -4,10 +4,10 @@
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager Navigation
 
-<PageTitle>Регистрация — JuniperFox</PageTitle>
+<PageTitle>Register — JuniperFox</PageTitle>
 
-<h1 style="margin-bottom: 0.25rem;">Регистрация</h1>
-<p class="jf-muted" style="margin-bottom: 1.5rem;">Создайте аккаунт для общих списков.</p>
+<h1 style="margin-bottom: 0.25rem;">Register</h1>
+<p class="jf-muted" style="margin-bottom: 1.5rem;">Create an account for shared lists.</p>
 
 @if (!string.IsNullOrEmpty(_error))
 {
@@ -17,19 +17,19 @@
 <EditForm Model="_model" OnValidSubmit="HandleRegister">
     <div class="jf-stack-tight">
         <div class="jf-field">
-            <label>Имя пользователя</label>
+            <label>Username</label>
             <InputText class="jf-input" @bind-Value="_model.UserName" autocomplete="username" />
         </div>
         <div class="jf-field">
-            <label>PIN (4 цифры)</label>
+            <label>PIN (4 digits)</label>
             <InputText class="jf-input" @bind-Value="_model.Pin" type="password" autocomplete="new-password" inputmode="numeric" />
         </div>
-        <button type="submit" class="jf-btn jf-btn-primary" style="width: 100%; margin-top: 0.25rem;">Создать аккаунт</button>
+        <button type="submit" class="jf-btn jf-btn-primary" style="width: 100%; margin-top: 0.25rem;">Create account</button>
     </div>
 </EditForm>
 
 <p class="jf-muted" style="margin-top: 1.5rem; text-align: center; font-size: 0.875rem;">
-    Уже есть аккаунт? <NavLink href="/login">Войти</NavLink>
+    Already have an account? <NavLink href="/login">Sign in</NavLink>
 </p>
 
 @code {
@@ -42,7 +42,7 @@
         var userName = _model.UserName.Trim();
         if (string.IsNullOrEmpty(userName))
         {
-            _error = "Введите имя пользователя.";
+            _error = "Enter a username.";
             return;
         }
 
@@ -54,7 +54,7 @@
         if (!response.IsSuccessStatusCode)
         {
             var body = await response.Content.ReadAsStringAsync();
-            _error = string.IsNullOrWhiteSpace(body) ? "Не удалось зарегистрироваться." : body;
+            _error = string.IsNullOrWhiteSpace(body) ? "Registration failed." : body;
             return;
         }
 

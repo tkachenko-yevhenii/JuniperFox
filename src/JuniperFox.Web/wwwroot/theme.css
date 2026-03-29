@@ -121,8 +121,11 @@ a:hover {
   color: #0a0a0c;
 }
 
-.jf-btn-primary:hover {
+/* Keep label readable: global `a:hover` uses accent color, same as this background */
+.jf-btn-primary:hover,
+.jf-btn-primary:focus-visible {
   background: var(--jf-accent-hover);
+  color: #0a0a0c;
 }
 
 .jf-btn-primary:disabled {

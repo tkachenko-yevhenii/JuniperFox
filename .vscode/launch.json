@@ -1,0 +1,50 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "JuniperFox.Api",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-juniperfox",
+      "program": "${workspaceFolder}/src/JuniperFox.Api/bin/Debug/net10.0/JuniperFox.Api.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/src/JuniperFox.Api",
+      "stopAtEntry": false,
+      "console": "integratedTerminal",
+      "launchSettingsProfile": "https",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "https://localhost:7002;http://localhost:5234"
+      }
+    },
+    {
+      "name": "JuniperFox.Web (Blazor WASM)",
+      "type": "blazorwasm",
+      "request": "launch",
+      "preLaunchTask": "build-juniperfox",
+      "cwd": "${workspaceFolder}/src/JuniperFox.Web",
+      "project": "${workspaceFolder}/src/JuniperFox.Web/JuniperFox.Web.csproj",
+      "launchSettingsProfile": "https",
+      "browser": "chrome",
+      "hosted": false,
+      "url": "https://localhost:7017",
+      "inspectUri": "{wsProtocol}://{url.hostname}:{url.port}/_framework/debug/ws-proxy?browser={browserInspectUri}",
+      "timeout": 120000,
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "https://localhost:7017;http://localhost:5248"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "JuniperFox: API + Web",
+      "configurations": ["JuniperFox.Api", "JuniperFox.Web (Blazor WASM)"],
+      "stopAll": true,
+      "presentation": {
+        "group": "JuniperFox",
+        "order": 1
+      }
+    }
+  ]
+}

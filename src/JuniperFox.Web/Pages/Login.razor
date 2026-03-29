@@ -4,10 +4,10 @@
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager Navigation
 
-<PageTitle>Вход — JuniperFox</PageTitle>
+<PageTitle>Sign in — JuniperFox</PageTitle>
 
-<h1 style="margin-bottom: 0.25rem;">Вход</h1>
-<p class="jf-muted" style="margin-bottom: 1.5rem;">С возвращением.</p>
+<h1 style="margin-bottom: 0.25rem;">Sign in</h1>
+<p class="jf-muted" style="margin-bottom: 1.5rem;">Welcome back.</p>
 
 @if (!string.IsNullOrEmpty(_error))
 {
@@ -17,19 +17,19 @@
 <EditForm Model="_model" OnValidSubmit="HandleLogin">
     <div class="jf-stack-tight">
         <div class="jf-field">
-            <label>Имя пользователя</label>
+            <label>Username</label>
             <InputText class="jf-input" @bind-Value="_model.UserName" autocomplete="username" />
         </div>
         <div class="jf-field">
-            <label>PIN (4 цифры)</label>
+            <label>PIN (4 digits)</label>
             <InputText class="jf-input" @bind-Value="_model.Pin" type="password" autocomplete="current-password" inputmode="numeric" />
         </div>
-        <button type="submit" class="jf-btn jf-btn-primary" style="width: 100%; margin-top: 0.25rem;">Войти</button>
+        <button type="submit" class="jf-btn jf-btn-primary" style="width: 100%; margin-top: 0.25rem;">Sign in</button>
     </div>
 </EditForm>
 
 <p class="jf-muted" style="margin-top: 1.5rem; text-align: center; font-size: 0.875rem;">
-    Нет аккаунта? <NavLink href="/register">Регистрация</NavLink>
+    No account? <NavLink href="/register">Register</NavLink>
 </p>
 
 @code {
@@ -46,13 +46,13 @@
 
         if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
-            _error = "Неверное имя или PIN.";
+            _error = "Invalid username or PIN.";
             return;
         }
 
         if (!response.IsSuccessStatusCode)
         {
-            _error = "Не удалось войти.";
+            _error = "Sign-in failed.";
             return;
         }
 

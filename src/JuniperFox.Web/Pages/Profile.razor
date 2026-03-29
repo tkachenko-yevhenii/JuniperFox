@@ -3,19 +3,19 @@
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager Navigation
 
-<PageTitle>Профиль — JuniperFox</PageTitle>
+<PageTitle>Profile — JuniperFox</PageTitle>
 
 @if (_checking)
 {
-    <p class="jf-muted">Загрузка…</p>
+    <p class="jf-muted">Loading…</p>
 }
 else
 {
-    <h1>Профиль</h1>
-    <p class="jf-muted">Аккаунт и выход из приложения.</p>
+    <h1>Profile</h1>
+    <p class="jf-muted">Your account and sign out.</p>
 
     <div class="jf-stack" style="margin-top: 1.5rem;">
-        <NavLink href="/logout" class="jf-btn jf-btn-ghost" style="width: 100%;">Выйти</NavLink>
+        <NavLink href="/logout" class="jf-btn jf-btn-ghost" style="width: 100%;">Sign out</NavLink>
     </div>
 }
 

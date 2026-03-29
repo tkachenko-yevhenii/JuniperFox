@@ -3,10 +3,10 @@
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager Navigation
 
-<PageTitle>Списки — JuniperFox</PageTitle>
+<PageTitle>Lists — JuniperFox</PageTitle>
 
-<h1>Списки</h1>
-<p class="jf-muted" style="margin-bottom: 1.25rem;">Выберите список или создайте новый.</p>
+<h1>Lists</h1>
+<p class="jf-muted" style="margin-bottom: 1.25rem;">Pick a list or create a new one.</p>
 
 @if (!string.IsNullOrEmpty(_error))
 {
@@ -15,11 +15,11 @@
 
 @if (_lists is null)
 {
-    <p class="jf-muted">Загрузка…</p>
+    <p class="jf-muted">Loading…</p>
 }
 else if (_lists.Count == 0)
 {
-    <p class="jf-muted">Пока нет списков — создайте первый ниже.</p>
+    <p class="jf-muted">No lists yet — create your first one below.</p>
 }
 else
 {
@@ -36,10 +36,10 @@ else
 
 <div class="jf-card jf-stack-tight">
     <div class="jf-field">
-        <label>Новый список</label>
-        <InputText class="jf-input" @bind-Value="_newTitle" placeholder="Например, Продукты на неделю" />
+        <label>New list</label>
+        <InputText class="jf-input" @bind-Value="_newTitle" placeholder="e.g. Weekly groceries" />
     </div>
-    <button type="button" class="jf-btn jf-btn-primary" style="width: 100%;" @onclick="CreateListAsync">Создать</button>
+    <button type="button" class="jf-btn jf-btn-primary" style="width: 100%;" @onclick="CreateListAsync">Create</button>
 </div>
 
 @code {
@@ -65,7 +65,7 @@ else
 
         if (!response.IsSuccessStatusCode)
         {
-            _error = "Не удалось загрузить списки.";
+            _error = "Could not load lists.";
             return;
         }
 
@@ -90,7 +90,7 @@ else
 
         if (!response.IsSuccessStatusCode)
         {
-            _error = "Не удалось создать список.";
+            _error = "Could not create list.";
             return;
         }
 
