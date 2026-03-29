@@ -45,15 +45,55 @@ jobs:
         with:
           name: .net-app
 
-      # Publish profile avoids OIDC; fix AADSTS70021 when federated credentials are missing.
-      # app-name MUST match publish profile userName without leading $ (often the long hostname
-      # stem, e.g. dev-juniperfox-ejc2ayexevbgesg7 — not only the portal resource name).
-      # azure/webapps-deploy always defaults slot-name to "production"; error text still mentions it.
-      - name: Deploy to Azure Web App
-        id: deploy-to-webapp
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: "dev-juniperfox-ejc2ayexevbgesg7"
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: .
+      # Kudu zip deploy: picks the publishProfile whose publishUrl contains "scm" (not the first
+      # profile in the file). azure/webapps-deploy@v3 only reads the first <publishProfile> and
+      # cross-checks userName vs app-name — that often fails with multi-profile .PublishSettings.
+      - name: Zip site
+        run: zip -rq "$GITHUB_WORKSPACE/site.zip" .
+
+      - name: Deploy to Azure (Kudu zip)
+        env:
+          PUBLISH_PROFILE: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+        run: |
+          python3 << 'PY'
+          import base64
+          import os
+          import ssl
+          import urllib.error
+          import urllib.request
+          import xml.etree.ElementTree as ET
+
+          root = ET.fromstring(os.environ["PUBLISH_PROFILE"])
+          prof = None
+          for p in root.iter():
+              if not p.tag.endswith("publishProfile"):
+                  continue
+              url = (p.get("publishUrl") or "").lower()
+              if "scm" in url and "ftp" not in url:
+                  prof = p
+                  break
+          if prof is None:
+              raise SystemExit("No SCM publishProfile found (expected publishUrl with .scm.)")
+
+          host = (prof.get("publishUrl") or "").split(":")[0].strip()
+          user = prof.get("userName") or ""
+          pwd = prof.get("userPWD") or ""
+          zip_url = f"https://{host}/api/zipdeploy"
+
+          zip_path = os.path.join(os.environ["GITHUB_WORKSPACE"], "site.zip")
+          body = open(zip_path, "rb").read()
+
+          req = urllib.request.Request(zip_url, data=body, method="POST")
+          token = base64.b64encode(f"{user}:{pwd}".encode("utf-8")).decode("ascii")
+          req.add_header("Authorization", f"Basic {token}")
+          req.add_header("Content-Type", "application/zip")
+
+          ctx = ssl.create_default_context()
+          try:
+              with urllib.request.urlopen(req, context=ctx, timeout=600) as resp:
+                  print(resp.status, resp.reason)
+          except urllib.error.HTTPError as e:
+              print(e.read().decode(errors="replace"))
+              raise
+          PY
           
