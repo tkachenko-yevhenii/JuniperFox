@@ -1,0 +1,6 @@
+@JuniperFox.Api_HostAddress = http://localhost:5234
+
+GET {{JuniperFox.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

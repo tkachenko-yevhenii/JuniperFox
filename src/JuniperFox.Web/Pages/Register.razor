@@ -1,0 +1,69 @@
+@page "/register"
+@layout AuthLayout
+@using System.Net
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+
+<PageTitle>Регистрация — JuniperFox</PageTitle>
+
+<h1 style="margin-bottom: 0.25rem;">Регистрация</h1>
+<p class="jf-muted" style="margin-bottom: 1.5rem;">Создайте аккаунт для общих списков.</p>
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <p class="jf-error">@_error</p>
+}
+
+<EditForm Model="_model" OnValidSubmit="HandleRegister">
+    <div class="jf-stack-tight">
+        <div class="jf-field">
+            <label>Имя пользователя</label>
+            <InputText class="jf-input" @bind-Value="_model.UserName" autocomplete="username" />
+        </div>
+        <div class="jf-field">
+            <label>PIN (4 цифры)</label>
+            <InputText class="jf-input" @bind-Value="_model.Pin" type="password" autocomplete="new-password" inputmode="numeric" />
+        </div>
+        <button type="submit" class="jf-btn jf-btn-primary" style="width: 100%; margin-top: 0.25rem;">Создать аккаунт</button>
+    </div>
+</EditForm>
+
+<p class="jf-muted" style="margin-top: 1.5rem; text-align: center; font-size: 0.875rem;">
+    Уже есть аккаунт? <NavLink href="/login">Войти</NavLink>
+</p>
+
+@code {
+    private RegisterModel _model = new();
+    private string? _error;
+
+    private async Task HandleRegister()
+    {
+        _error = null;
+        var userName = _model.UserName.Trim();
+        if (string.IsNullOrEmpty(userName))
+        {
+            _error = "Введите имя пользователя.";
+            return;
+        }
+
+        var client = HttpClientFactory.CreateClient("Api");
+        var response = await client.PostAsJsonAsync(
+            "api/auth/register",
+            new RegisterRequest { UserName = userName, Pin = _model.Pin });
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            _error = string.IsNullOrWhiteSpace(body) ? "Не удалось зарегистрироваться." : body;
+            return;
+        }
+
+        Navigation.NavigateTo("/");
+    }
+
+    private sealed class RegisterModel
+    {
+        public string UserName { get; set; } = string.Empty;
+        public string Pin { get; set; } = string.Empty;
+    }
+}

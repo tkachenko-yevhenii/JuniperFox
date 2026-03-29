@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/JuniperFox.Api/JuniperFox.Api.csproj" />
+    <Project Path="src/JuniperFox.Application/JuniperFox.Application.csproj" />
+    <Project Path="src/JuniperFox.Contracts/JuniperFox.Contracts.csproj" />
+    <Project Path="src/JuniperFox.Domain/JuniperFox.Domain.csproj" />
+    <Project Path="src/JuniperFox.Infrastructure/JuniperFox.Infrastructure.csproj" />
+    <Project Path="src/JuniperFox.Web/JuniperFox.Web.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,418 @@
+/* JuniperFox — dark-first tokens (GetMe-style: fast, minimal) */
+
+:root {
+  color-scheme: dark;
+
+  --jf-bg: #0a0a0c;
+  --jf-bg-elevated: #111114;
+  --jf-surface: #16161b;
+  --jf-surface-hover: #1e1e25;
+  --jf-border: #2c2c35;
+  --jf-border-subtle: #1f1f26;
+
+  --jf-text: #f4f4f5;
+  --jf-text-muted: #a1a1aa;
+  --jf-text-faint: #71717a;
+
+  --jf-accent: #e0933a;
+  --jf-accent-hover: #f0a84d;
+  --jf-accent-pressed: #c97d2a;
+  --jf-accent-muted: rgba(224, 147, 58, 0.14);
+
+  --jf-danger: #f87171;
+  --jf-success: #4ade80;
+
+  --jf-radius: 14px;
+  --jf-radius-sm: 10px;
+  --jf-radius-pill: 999px;
+
+  --jf-font: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --jf-tabbar-h: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+  --jf-header-h: 3.25rem;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--jf-font);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--jf-bg);
+  color: var(--jf-text);
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.75rem;
+}
+
+h1 {
+  font-size: 1.5rem;
+}
+
+h2 {
+  font-size: 1.125rem;
+  color: var(--jf-text-muted);
+  font-weight: 500;
+}
+
+a {
+  color: var(--jf-accent);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--jf-accent-hover);
+}
+
+.jf-muted {
+  color: var(--jf-text-muted);
+}
+
+.jf-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.jf-stack-tight {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Buttons */
+.jf-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0 1.125rem;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--jf-radius-pill);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.jf-btn:active {
+  transform: scale(0.98);
+}
+
+.jf-btn-primary {
+  background: var(--jf-accent);
+  color: #0a0a0c;
+}
+
+.jf-btn-primary:hover {
+  background: var(--jf-accent-hover);
+}
+
+.jf-btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.jf-btn-ghost {
+  background: transparent;
+  color: var(--jf-text-muted);
+  border: 1px solid var(--jf-border);
+}
+
+.jf-btn-ghost:hover {
+  background: var(--jf-surface-hover);
+  color: var(--jf-text);
+}
+
+.jf-btn-danger {
+  background: transparent;
+  color: var(--jf-danger);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+}
+
+.jf-btn-danger:hover {
+  background: rgba(248, 113, 113, 0.1);
+}
+
+/* Form fields */
+.jf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.jf-field label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--jf-text-muted);
+}
+
+.jf-input {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0 0.875rem;
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--jf-text);
+  background: var(--jf-surface);
+  border: 1px solid var(--jf-border);
+  border-radius: var(--jf-radius-sm);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.jf-input:focus {
+  border-color: var(--jf-accent);
+  box-shadow: 0 0 0 3px var(--jf-accent-muted);
+}
+
+.jf-input::placeholder {
+  color: var(--jf-text-faint);
+}
+
+/* Cards & list rows */
+.jf-card {
+  background: var(--jf-surface);
+  border: 1px solid var(--jf-border-subtle);
+  border-radius: var(--jf-radius);
+  padding: 1rem;
+}
+
+.jf-list-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  background: var(--jf-surface);
+  border: 1px solid var(--jf-border-subtle);
+  border-radius: var(--jf-radius-sm);
+  margin-bottom: 0.5rem;
+}
+
+.jf-list-row:last-child {
+  margin-bottom: 0;
+}
+
+.jf-item-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  cursor: pointer;
+}
+
+.jf-item-row:focus-within {
+  border-color: var(--jf-border);
+}
+
+.jf-item-check {
+  width: 1.2rem;
+  height: 1.2rem;
+  margin-top: 0.1rem;
+  flex-shrink: 0;
+  accent-color: var(--jf-accent);
+  cursor: pointer;
+}
+
+.jf-item-label {
+  flex: 1;
+  min-width: 0;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.jf-item-purchased .jf-item-label {
+  text-decoration: line-through;
+  color: var(--jf-text-muted);
+  font-weight: 400;
+}
+
+.jf-item-purchased {
+  opacity: 0.85;
+}
+
+.jf-error {
+  color: var(--jf-danger);
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.valid.modified:not([type="checkbox"]) {
+  outline: 1px solid var(--jf-success);
+}
+
+.invalid {
+  outline: 1px solid var(--jf-danger);
+}
+
+.validation-message {
+  color: var(--jf-danger);
+  font-size: 0.8125rem;
+}
+
+/* App shell (main layout + bottom tab bar) */
+.jf-app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  padding-bottom: var(--jf-tabbar-h);
+}
+
+.jf-app-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--jf-header-h);
+  padding: 0.5rem max(1rem, env(safe-area-inset-left)) 0.5rem max(1rem, env(safe-area-inset-right));
+  padding-top: max(0.5rem, env(safe-area-inset-top));
+  background: color-mix(in srgb, var(--jf-bg) 92%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--jf-border-subtle);
+}
+
+.jf-app-header h1 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.jf-app-main {
+  flex: 1;
+  padding: 1rem max(1rem, env(safe-area-inset-left)) 1.5rem max(1rem, env(safe-area-inset-right));
+  max-width: 42rem;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.jf-tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: space-around;
+  align-items: stretch;
+  min-height: var(--jf-tabbar-h);
+  padding: 0.35rem max(0.75rem, env(safe-area-inset-left)) env(safe-area-inset-bottom, 0.5rem)
+    max(0.75rem, env(safe-area-inset-right));
+  background: color-mix(in srgb, var(--jf-bg-elevated) 96%, transparent);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--jf-border-subtle);
+}
+
+.jf-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--jf-text-faint);
+  border-radius: var(--jf-radius-sm);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.jf-tab:hover {
+  color: var(--jf-text-muted);
+  background: var(--jf-surface-hover);
+}
+
+.jf-tab.active {
+  color: var(--jf-accent);
+}
+
+.jf-tab svg {
+  width: 1.35rem;
+  height: 1.35rem;
+  opacity: 0.9;
+}
+
+.jf-tab.active svg {
+  opacity: 1;
+}
+
+/* Auth / marketing (no tab bar) */
+.jf-auth-shell {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem max(1rem, env(safe-area-inset-left)) max(2rem, env(safe-area-inset-bottom))
+    max(1rem, env(safe-area-inset-right));
+  padding-top: max(1.5rem, env(safe-area-inset-top));
+}
+
+.jf-auth-card {
+  width: 100%;
+  max-width: 22rem;
+}
+
+.jf-brand-mark {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+
+.jf-brand-sub {
+  text-align: center;
+  color: var(--jf-text-muted);
+  font-size: 0.9375rem;
+  margin-bottom: 2rem;
+  line-height: 1.45;
+}
+
+#blazor-error-ui {
+  color-scheme: dark;
+  background: var(--jf-surface);
+  color: var(--jf-text);
+  bottom: 0;
+  box-shadow: 0 -1px 0 var(--jf-border-subtle);
+  box-sizing: border-box;
+  display: none;
+  left: 0;
+  padding: 0.75rem 1.25rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  position: fixed;
+  width: 100%;
+  z-index: 2000;
+}
+
+#blazor-error-ui .dismiss {
+  cursor: pointer;
+  position: absolute;
+  right: 0.75rem;
+  top: 0.6rem;
+  opacity: 0.7;
+}
+
+#blazor-error-ui .reload {
+  color: var(--jf-accent);
+}

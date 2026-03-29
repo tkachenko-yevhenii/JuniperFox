@@ -1,0 +1,27 @@
+@inherits LayoutComponentBase
+
+<div class="jf-app-shell">
+    <main class="jf-app-main">
+        @Body
+    </main>
+    <nav class="jf-tabbar" aria-label="Main">
+        <NavLink href="/lists" class="jf-tab" Match="NavLinkMatch.Prefix">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+            </svg>
+            <span>Списки</span>
+        </NavLink>
+        <NavLink href="/profile" class="jf-tab">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.5 20.118a7.5 7.5 0 0115 0" />
+            </svg>
+            <span>Профиль</span>
+        </NavLink>
+    </nav>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">✕</span>
+</div>

@@ -1,0 +1,72 @@
+## Build
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+*.dll
+*.exe
+*.pdb
+*.cache
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+## Visual Studio / MSBuild
+.vs/
+*.user
+*.userosscache
+*.suo
+*.sln.docstates
+*.rsuser
+*.userprefs
+*.DotSettings.user
+
+## Rider
+.idea/
+*.sln.iml
+
+## NuGet
+*.nupkg
+*.snupkg
+**/packages/*
+!**/packages/build/
+*.nuget.props
+*.nuget.targets
+
+## Test / coverage
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+*.trx
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+*.opencover.xml
+
+## ASP.NET
+**/wwwroot/lib/
+**/wwwroot/dist/
+**/appsettings.*.local.json
+**/secrets.json
+
+## EF / migrations local tooling (optional; remove line if you commit local SQLite files)
+*.db
+*.db-shm
+*.db-wal
+
+## Docker / env (keep compose.yaml; ignore local overrides)
+.env
+.env.*
+!.env.example
+
+## OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+## Markdown
+*.md
+!README.md
+
+## VS Code (optional — uncomment if you don't commit workspace settings)
+# .vscode/

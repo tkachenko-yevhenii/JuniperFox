@@ -1,0 +1,22 @@
+@page "/logout"
+@layout AuthLayout
+@using System.Net
+@using System.Text
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+@inject LastOpenedListStorage LastOpenedList
+
+<PageTitle>Выход — JuniperFox</PageTitle>
+
+<p class="jf-muted" style="text-align: center;">Выход…</p>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        var client = HttpClientFactory.CreateClient("Api");
+        using var content = new StringContent("{}", Encoding.UTF8, "application/json");
+        await client.PostAsync("api/auth/logout", content);
+        await LastOpenedList.ClearAsync();
+        Navigation.NavigateTo("/", forceLoad: false);
+    }
+}

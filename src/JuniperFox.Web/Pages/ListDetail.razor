@@ -1,0 +1,242 @@
+@page "/lists/{Id:guid}"
+@using System.Net
+@using Microsoft.AspNetCore.SignalR.Client
+@implements IAsyncDisposable
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+@inject LastOpenedListStorage LastOpenedList
+
+<PageTitle>@(_detail?.Title ?? "Список") — JuniperFox</PageTitle>
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <p class="jf-error">@_error</p>
+}
+
+@if (_detail is null)
+{
+    <p class="jf-muted">Загрузка…</p>
+}
+else
+{
+    <p style="margin-bottom: 0.75rem;">
+        <NavLink href="/lists" class="jf-muted" style="font-size: 0.875rem;">← К спискам</NavLink>
+    </p>
+    <h1>@_detail.Title</h1>
+
+    <h2>Позиции</h2>
+    @if (_detail.Items.Count == 0)
+    {
+        <p class="jf-muted">Пока пусто — добавьте товар ниже.</p>
+    }
+    else
+    {
+        <div class="jf-stack-tight" style="margin-bottom: 1.25rem;">
+            @foreach (var item in _detail.Items)
+            {
+                <label @key="item.Id" class="jf-list-row jf-item-row @(item.IsPurchased ? "jf-item-purchased" : null)">
+                    <input type="checkbox"
+                           class="jf-item-check"
+                           checked="@item.IsPurchased"
+                           disabled="@(_busyItemId == item.Id)"
+                           @onchange="e => OnItemCheckedChangedAsync(item, e)" />
+                    <span class="jf-item-label">
+                        @item.Name
+                        @if (item.Quantity is { } q)
+                        {
+                            <span class="jf-muted"> ×@q</span>
+                        }
+                    </span>
+                </label>
+            }
+        </div>
+    }
+
+    <div class="jf-card jf-stack-tight">
+        <div class="jf-field">
+            <label>Товар</label>
+            <InputText class="jf-input" @bind-Value="_itemName" placeholder="Название" />
+        </div>
+        <div class="jf-field">
+            <label>Количество (необязательно)</label>
+            <InputNumber class="jf-input" @bind-Value="_quantity" />
+        </div>
+        <button type="button" class="jf-btn jf-btn-primary" style="width: 100%;" @onclick="AddItemAsync">Добавить</button>
+    </div>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private ProductListDetailDto? _detail;
+    private string _itemName = string.Empty;
+    private int? _quantity;
+    private string? _error;
+    private Guid? _busyItemId;
+    private HubConnection? _hubConnection;
+    private bool _isLoading;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+        await ConnectRealtimeAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (_isLoading)
+            return;
+
+        _isLoading = true;
+        _error = null;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("Api");
+            var response = await client.GetAsync($"api/product-lists/{Id}");
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                await LastOpenedList.ClearAsync();
+                Navigation.NavigateTo("/lists", replace: true);
+                return;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = "Не удалось загрузить список.";
+                return;
+            }
+
+            _detail = await response.Content.ReadFromJsonAsync<ProductListDetailDto>();
+            if (_detail is not null)
+                await LastOpenedList.SetAsync(Id);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task ConnectRealtimeAsync()
+    {
+        var client = HttpClientFactory.CreateClient("Api");
+        var hubUri = new Uri(client.BaseAddress!, "hubs/lists");
+
+        _hubConnection = new HubConnectionBuilder()
+            .WithUrl(hubUri)
+            .WithAutomaticReconnect()
+            .Build();
+
+        _hubConnection.On<Guid>("ListChanged", async listId =>
+        {
+            if (listId != Id)
+                return;
+
+            await InvokeAsync(LoadAsync);
+        });
+
+        try
+        {
+            await _hubConnection.StartAsync();
+            await _hubConnection.InvokeAsync("SubscribeToList", Id);
+        }
+        catch
+        {
+            // Real-time is optional: keep list usable with manual/REST refresh.
+        }
+    }
+
+    private async Task OnItemCheckedChangedAsync(ProductListItemDto item, ChangeEventArgs e)
+    {
+        if (e.Value is not bool nextValue || nextValue == item.IsPurchased)
+            return;
+
+        await SetPurchasedAsync(item.Id, nextValue);
+    }
+
+    private async Task SetPurchasedAsync(Guid itemId, bool isPurchased)
+    {
+        _busyItemId = itemId;
+        _error = null;
+        try
+        {
+            var client = HttpClientFactory.CreateClient("Api");
+            var response = await client.PatchAsJsonAsync(
+                $"api/product-lists/{Id}/items/{itemId}",
+                new SetProductListItemPurchasedRequest { IsPurchased = isPurchased });
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = "Не удалось обновить позицию.";
+                return;
+            }
+
+            await LoadAsync();
+        }
+        finally
+        {
+            _busyItemId = null;
+        }
+    }
+
+    private async Task AddItemAsync()
+    {
+        if (_detail is null || string.IsNullOrWhiteSpace(_itemName))
+            return;
+
+        _error = null;
+        var client = HttpClientFactory.CreateClient("Api");
+        var response = await client.PostAsJsonAsync(
+            $"api/product-lists/{Id}/items",
+            new AddProductListItemRequest
+            {
+                Name = _itemName.Trim(),
+                Quantity = _quantity,
+            });
+
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _error = "Не удалось добавить позицию.";
+            return;
+        }
+
+        _itemName = string.Empty;
+        _quantity = null;
+        await LoadAsync();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_hubConnection is null)
+            return;
+
+        try
+        {
+            if (_hubConnection.State == HubConnectionState.Connected)
+                await _hubConnection.InvokeAsync("UnsubscribeFromList", Id);
+        }
+        catch
+        {
+            // Ignore disconnect errors during page disposal/navigation.
+        }
+
+        await _hubConnection.DisposeAsync();
+    }
+}

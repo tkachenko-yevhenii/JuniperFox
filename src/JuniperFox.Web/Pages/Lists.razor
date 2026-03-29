@@ -1,0 +1,100 @@
+@page "/lists"
+@using System.Net
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+
+<PageTitle>Списки — JuniperFox</PageTitle>
+
+<h1>Списки</h1>
+<p class="jf-muted" style="margin-bottom: 1.25rem;">Выберите список или создайте новый.</p>
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <p class="jf-error">@_error</p>
+}
+
+@if (_lists is null)
+{
+    <p class="jf-muted">Загрузка…</p>
+}
+else if (_lists.Count == 0)
+{
+    <p class="jf-muted">Пока нет списков — создайте первый ниже.</p>
+}
+else
+{
+    <div class="jf-stack-tight" style="margin-bottom: 1.5rem;">
+        @foreach (var l in _lists)
+        {
+            <NavLink href="@($"/lists/{l.Id}")" class="jf-list-row" style="text-decoration: none; color: inherit;">
+                <span style="font-weight: 500;">@l.Title</span>
+                <span class="jf-muted" style="font-size: 1.25rem;" aria-hidden="true">›</span>
+            </NavLink>
+        }
+    </div>
+}
+
+<div class="jf-card jf-stack-tight">
+    <div class="jf-field">
+        <label>Новый список</label>
+        <InputText class="jf-input" @bind-Value="_newTitle" placeholder="Например, Продукты на неделю" />
+    </div>
+    <button type="button" class="jf-btn jf-btn-primary" style="width: 100%;" @onclick="CreateListAsync">Создать</button>
+</div>
+
+@code {
+    private List<ProductListSummaryDto>? _lists;
+    private string _newTitle = string.Empty;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _error = null;
+        var client = HttpClientFactory.CreateClient("Api");
+        var response = await client.GetAsync("api/product-lists");
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _error = "Не удалось загрузить списки.";
+            return;
+        }
+
+        _lists = await response.Content.ReadFromJsonAsync<List<ProductListSummaryDto>>();
+    }
+
+    private async Task CreateListAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newTitle))
+            return;
+
+        _error = null;
+        var client = HttpClientFactory.CreateClient("Api");
+        var response = await client.PostAsJsonAsync(
+            "api/product-lists",
+            new CreateProductListRequest { Title = _newTitle.Trim() });
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _error = "Не удалось создать список.";
+            return;
+        }
+
+        _newTitle = string.Empty;
+        await LoadAsync();
+    }
+}

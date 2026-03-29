@@ -1,0 +1,58 @@
+@page "/"
+@layout AuthLayout
+@using System.Net
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+@inject LastOpenedListStorage LastOpenedList
+
+<PageTitle>JuniperFox</PageTitle>
+
+@if (_busy)
+{
+    <p class="jf-muted" style="text-align: center;">Загрузка…</p>
+}
+else if (_showLanding)
+{
+    <div class="jf-brand-mark">JuniperFox</div>
+    <p class="jf-brand-sub">
+        Общие списки покупок для семьи. Открыл — увидел — отметил — закрыл.
+    </p>
+    <div class="jf-stack-tight">
+        <NavLink href="/login" class="jf-btn jf-btn-primary" style="width: 100%;">Войти</NavLink>
+        <NavLink href="/register" class="jf-btn jf-btn-ghost" style="width: 100%;">Регистрация</NavLink>
+    </div>
+}
+
+@code {
+    private bool _busy = true;
+    private bool _showLanding;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var client = HttpClientFactory.CreateClient("Api");
+        var response = await client.GetAsync("api/product-lists");
+
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            _busy = false;
+            _showLanding = true;
+            return;
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _busy = false;
+            _showLanding = true;
+            return;
+        }
+
+        var last = await LastOpenedList.GetAsync();
+        if (last.HasValue)
+        {
+            Navigation.NavigateTo($"/lists/{last.Value}", replace: true);
+            return;
+        }
+
+        Navigation.NavigateTo("/lists", replace: true);
+    }
+}

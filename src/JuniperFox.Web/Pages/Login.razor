@@ -1,0 +1,67 @@
+@page "/login"
+@layout AuthLayout
+@using System.Net
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+
+<PageTitle>Вход — JuniperFox</PageTitle>
+
+<h1 style="margin-bottom: 0.25rem;">Вход</h1>
+<p class="jf-muted" style="margin-bottom: 1.5rem;">С возвращением.</p>
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <p class="jf-error">@_error</p>
+}
+
+<EditForm Model="_model" OnValidSubmit="HandleLogin">
+    <div class="jf-stack-tight">
+        <div class="jf-field">
+            <label>Имя пользователя</label>
+            <InputText class="jf-input" @bind-Value="_model.UserName" autocomplete="username" />
+        </div>
+        <div class="jf-field">
+            <label>PIN (4 цифры)</label>
+            <InputText class="jf-input" @bind-Value="_model.Pin" type="password" autocomplete="current-password" inputmode="numeric" />
+        </div>
+        <button type="submit" class="jf-btn jf-btn-primary" style="width: 100%; margin-top: 0.25rem;">Войти</button>
+    </div>
+</EditForm>
+
+<p class="jf-muted" style="margin-top: 1.5rem; text-align: center; font-size: 0.875rem;">
+    Нет аккаунта? <NavLink href="/register">Регистрация</NavLink>
+</p>
+
+@code {
+    private LoginModel _model = new();
+    private string? _error;
+
+    private async Task HandleLogin()
+    {
+        _error = null;
+        var client = HttpClientFactory.CreateClient("Api");
+        var response = await client.PostAsJsonAsync(
+            "api/auth/login",
+            new LoginRequest { UserName = _model.UserName.Trim(), Pin = _model.Pin });
+
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            _error = "Неверное имя или PIN.";
+            return;
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _error = "Не удалось войти.";
+            return;
+        }
+
+        Navigation.NavigateTo("/");
+    }
+
+    private sealed class LoginModel
+    {
+        public string UserName { get; set; } = string.Empty;
+        public string Pin { get; set; } = string.Empty;
+    }
+}
