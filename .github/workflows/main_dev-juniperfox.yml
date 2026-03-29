@@ -23,11 +23,9 @@ jobs:
         with:
           dotnet-version: '10.x'
 
-      - name: Build with dotnet
-        run: dotnet build --configuration Release
-
-      - name: dotnet publish
-        run: dotnet publish -c Release -o ${{env.DOTNET_ROOT}}/myapp
+      # Root has JuniperFox.slnx only — publish must target the API host explicitly.
+      - name: Publish API
+        run: dotnet publish src/JuniperFox.Api/JuniperFox.Api.csproj -c Release -o ${{env.DOTNET_ROOT}}/myapp
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
@@ -39,27 +37,21 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
+      contents: read
 
     steps:
       - name: Download artifact from build job
         uses: actions/download-artifact@v4
         with:
           name: .net-app
-      
-      - name: Login to Azure
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_DA95C9718CFE40949593DA44D69D7CEB }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_326A0B38910C4F8B984F0FF3CC9A8220 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_6A40777E0EE04549B7762D93D5473683 }}
 
+      # Publish profile avoids OIDC; fix AADSTS70021 when federated credentials are missing.
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'dev-juniperfox'
-          slot-name: 'Production'
+          app-name: "dev-juniperfox"
+          slot-name: "Production"
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
           package: .
           
