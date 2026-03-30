@@ -9,6 +9,13 @@
 <h1 style="margin-bottom: 0.25rem;">Sign in</h1>
 <p class="jf-muted" style="margin-bottom: 1.5rem;">Welcome back.</p>
 
+@if (_busy)
+{
+    <div class="jf-busy-overlay" role="status" aria-live="polite" aria-label="Signing in">
+        <div class="jf-spinner" aria-hidden="true"></div>
+    </div>
+}
+
 @if (!string.IsNullOrEmpty(_error))
 {
     <p class="jf-error">@_error</p>
@@ -18,13 +25,13 @@
     <div class="jf-stack-tight">
         <div class="jf-field">
             <label>Username</label>
-            <InputText class="jf-input" @bind-Value="_model.UserName" autocomplete="username" />
+                <InputText class="jf-input" @bind-Value="_model.UserName" autocomplete="username" disabled="@_busy" />
         </div>
         <div class="jf-field">
             <label>PIN (4 digits)</label>
-            <InputText class="jf-input" @bind-Value="_model.Pin" type="password" autocomplete="current-password" inputmode="numeric" />
+                <InputText class="jf-input" @bind-Value="_model.Pin" type="password" autocomplete="current-password" inputmode="numeric" disabled="@_busy" />
         </div>
-        <button type="submit" class="jf-btn jf-btn-primary" style="width: 100%; margin-top: 0.25rem;">Sign in</button>
+            <button type="submit" class="jf-btn jf-btn-primary" style="width: 100%; margin-top: 0.25rem;" disabled="@_busy">Sign in</button>
     </div>
 </EditForm>
 
@@ -35,28 +42,43 @@
 @code {
     private LoginModel _model = new();
     private string? _error;
+    private bool _busy;
 
     private async Task HandleLogin()
     {
+        if (_busy)
+            return;
+
+        _busy = true;
         _error = null;
-        var client = HttpClientFactory.CreateClient("Api");
-        var response = await client.PostAsJsonAsync(
-            "api/auth/login",
-            new LoginRequest { UserName = _model.UserName.Trim(), Pin = _model.Pin });
+        await InvokeAsync(StateHasChanged);
 
-        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        try
         {
-            _error = "Invalid username or PIN.";
-            return;
-        }
+            var client = HttpClientFactory.CreateClient("Api");
+            var response = await client.PostAsJsonAsync(
+                "api/auth/login",
+                new LoginRequest { UserName = _model.UserName.Trim(), Pin = _model.Pin });
 
-        if (!response.IsSuccessStatusCode)
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                _error = "Invalid username or PIN.";
+                return;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = "Sign-in failed.";
+                return;
+            }
+
+            Navigation.NavigateTo("/");
+        }
+        finally
         {
-            _error = "Sign-in failed.";
-            return;
+            _busy = false;
+            await InvokeAsync(StateHasChanged);
         }
-
-        Navigation.NavigateTo("/");
     }
 
     private sealed class LoginModel

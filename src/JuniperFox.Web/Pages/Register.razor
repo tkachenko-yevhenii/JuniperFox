@@ -9,6 +9,13 @@
 <h1 style="margin-bottom: 0.25rem;">Register</h1>
 <p class="jf-muted" style="margin-bottom: 1.5rem;">Create an account for shared lists.</p>
 
+@if (_busy)
+{
+    <div class="jf-busy-overlay" role="status" aria-live="polite" aria-label="Creating account">
+        <div class="jf-spinner" aria-hidden="true"></div>
+    </div>
+}
+
 @if (!string.IsNullOrEmpty(_error))
 {
     <p class="jf-error">@_error</p>
@@ -18,13 +25,13 @@
     <div class="jf-stack-tight">
         <div class="jf-field">
             <label>Username</label>
-            <InputText class="jf-input" @bind-Value="_model.UserName" autocomplete="username" />
+            <InputText class="jf-input" @bind-Value="_model.UserName" autocomplete="username" disabled="@_busy" />
         </div>
         <div class="jf-field">
             <label>PIN (4 digits)</label>
-            <InputText class="jf-input" @bind-Value="_model.Pin" type="password" autocomplete="new-password" inputmode="numeric" />
+            <InputText class="jf-input" @bind-Value="_model.Pin" type="password" autocomplete="new-password" inputmode="numeric" disabled="@_busy" />
         </div>
-        <button type="submit" class="jf-btn jf-btn-primary" style="width: 100%; margin-top: 0.25rem;">Create account</button>
+        <button type="submit" class="jf-btn jf-btn-primary" style="width: 100%; margin-top: 0.25rem;" disabled="@_busy">Create account</button>
     </div>
 </EditForm>
 
@@ -35,43 +42,59 @@
 @code {
     private RegisterModel _model = new();
     private string? _error;
+    private bool _busy;
 
     private async Task HandleRegister()
     {
+        if (_busy)
+            return;
+
+        _busy = true;
         _error = null;
         var userName = _model.UserName.Trim();
         if (string.IsNullOrEmpty(userName))
         {
             _error = "Enter a username.";
+            _busy = false;
             return;
         }
 
         var pin = _model.Pin;
         var client = HttpClientFactory.CreateClient("Api");
-        var response = await client.PostAsJsonAsync(
-            "api/auth/register",
-            new RegisterRequest { UserName = userName, Pin = pin });
+        await InvokeAsync(StateHasChanged);
 
-        if (!response.IsSuccessStatusCode)
+        try
         {
-            var body = await response.Content.ReadAsStringAsync();
-            _error = string.IsNullOrWhiteSpace(body) ? "Registration failed." : body;
-            return;
+            var response = await client.PostAsJsonAsync(
+                "api/auth/register",
+                new RegisterRequest { UserName = userName, Pin = pin });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync();
+                _error = string.IsNullOrWhiteSpace(body) ? "Registration failed." : body;
+                return;
+            }
+
+            // Ensure auth cookie/session exists in the browser by performing an explicit login.
+            // This keeps the user signed in immediately after registration.
+            var loginResponse = await client.PostAsJsonAsync(
+                "api/auth/login",
+                new LoginRequest { UserName = userName, Pin = pin });
+
+            if (!loginResponse.IsSuccessStatusCode)
+            {
+                _error = "Sign-in after registration failed.";
+                return;
+            }
+
+            Navigation.NavigateTo("/");
         }
-
-        // Ensure auth cookie/session exists in the browser by performing an explicit login.
-        // This keeps the user signed in immediately after registration.
-        var loginResponse = await client.PostAsJsonAsync(
-            "api/auth/login",
-            new LoginRequest { UserName = userName, Pin = pin });
-
-        if (!loginResponse.IsSuccessStatusCode)
+        finally
         {
-            _error = "Sign-in after registration failed.";
-            return;
+            _busy = false;
+            await InvokeAsync(StateHasChanged);
         }
-
-        Navigation.NavigateTo("/");
     }
 
     private sealed class RegisterModel
