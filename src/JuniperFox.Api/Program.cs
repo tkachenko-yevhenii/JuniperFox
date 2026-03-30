@@ -11,7 +11,11 @@ public static class Program
 {
     public static async Task Main(string[] args)
     {
-        var builder = WebApplication.CreateBuilder(args);
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            Args = args,
+            WebRootPath = Path.Combine(AppContext.BaseDirectory, "wwwroot")
+        });
 
         // Avoid duplicate lines in the debugger: default Console + Debug providers plus Serilog.
         builder.Logging.ClearProviders();
@@ -78,6 +82,8 @@ public static class Program
         await app.ApplyDatabaseMigrationsIfEnabledAsync();
 
         app.UseHttpsRedirection();
+        app.UseBlazorFrameworkFiles();
+        app.UseStaticFiles();
 
         if (allowedOrigins.Length > 0)
             app.UseCors("Wasm");
@@ -88,6 +94,7 @@ public static class Program
         app.MapControllers();
         app.MapHub<ListUpdatesHub>("/hubs/lists");
         app.MapHealthChecks("/health");
+        app.MapFallbackToFile("index.html");
 
         try
         {

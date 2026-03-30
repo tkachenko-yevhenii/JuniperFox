@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.5" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.5" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
@@ -22,6 +23,33 @@
     <ProjectReference Include="..\JuniperFox.Infrastructure\JuniperFox.Infrastructure.csproj" />
     <ProjectReference Include="..\JuniperFox.Contracts\JuniperFox.Contracts.csproj" />
     <ProjectReference Include="..\JuniperFox.Domain\JuniperFox.Domain.csproj" />
+    <ProjectReference Include="..\JuniperFox.Web\JuniperFox.Web.csproj" />
   </ItemGroup>
+
+  <PropertyGroup>
+    <BlazorClientPublishDir>$(BaseIntermediateOutputPath)blazor-client-publish\</BlazorClientPublishDir>
+    <BlazorClientBuildOutputDir>..\JuniperFox.Web\bin\$(Configuration)\net10.0\wwwroot\</BlazorClientBuildOutputDir>
+  </PropertyGroup>
+
+  <Target Name="CopyBlazorClientForLocalRun" AfterTargets="Build">
+    <ItemGroup>
+      <BlazorClientBuildFiles Include="$(BlazorClientBuildOutputDir)**\*" />
+    </ItemGroup>
+    <Copy
+      SourceFiles="@(BlazorClientBuildFiles)"
+      DestinationFiles="@(BlazorClientBuildFiles->'$(TargetDir)wwwroot\%(RecursiveDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="PublishBlazorClient" AfterTargets="Publish">
+    <Exec Command="dotnet publish ../JuniperFox.Web/JuniperFox.Web.csproj -c $(Configuration) -o $(BlazorClientPublishDir)" />
+    <ItemGroup>
+      <BlazorClientFiles Include="$(BlazorClientPublishDir)wwwroot\**\*" />
+    </ItemGroup>
+    <Copy
+      SourceFiles="@(BlazorClientFiles)"
+      DestinationFiles="@(BlazorClientFiles->'$(PublishDir)wwwroot\%(RecursiveDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>
