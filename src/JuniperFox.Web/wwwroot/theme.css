@@ -500,13 +500,14 @@ a:hover {
   border: none;
   border-radius: 0;
   border-bottom: 1px solid var(--jf-border-subtle);
-  margin-bottom: 0;
-  padding: 0.4rem 0.2rem 0.4rem 0.3rem;
-  gap: 0.45rem;
+  margin-bottom: 0.35rem;
+  padding: 0.55rem 0.25rem 0.55rem 0.35rem;
+  gap: 0.6rem;
 }
 
 .jf-list-detail-scroll .jf-list-row.jf-item-row:last-child {
   border-bottom: none;
+  margin-bottom: 0;
 }
 
 .jf-list-detail-scroll .jf-item-row:hover {
@@ -515,13 +516,17 @@ a:hover {
 }
 
 .jf-list-detail-scroll .jf-item-label {
-  font-size: 0.9375rem;
-  line-height: 1.35;
+  font-size: 1rem;
+  line-height: 1.45;
 }
 
 .jf-list-detail-scroll .jf-item-delete {
-  width: 2rem;
-  height: 2rem;
+  width: 2.1rem;
+  height: 2.1rem;
+}
+
+.jf-list-detail-scroll .jf-item-row.jf-item-purchased {
+  background: rgba(255, 255, 255, 0.045);
 }
 
 .jf-item-group-gap {
@@ -580,6 +585,14 @@ a:hover {
   background: color-mix(in srgb, var(--jf-bg-elevated) 96%, transparent);
   backdrop-filter: blur(12px);
   border-top: 1px solid var(--jf-border-subtle);
+}
+
+body.jf-keyboard-open .jf-tabbar {
+  display: none;
+}
+
+body.jf-keyboard-open .jf-app-shell {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .jf-tab {
