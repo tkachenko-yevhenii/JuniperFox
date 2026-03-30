@@ -11,4 +11,6 @@ public sealed class ProductList
     public DateTimeOffset CreatedAtUtc { get; set; }
 
     public ICollection<ProductListItem> Items { get; set; } = new List<ProductListItem>();
+
+    public ICollection<ProductListShare> Shares { get; set; } = new List<ProductListShare>();
 }

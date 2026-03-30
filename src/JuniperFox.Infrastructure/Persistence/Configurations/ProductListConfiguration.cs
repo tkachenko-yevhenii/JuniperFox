@@ -29,5 +29,10 @@ internal sealed class ProductListConfiguration : IEntityTypeConfiguration<Produc
             .WithOne(i => i.ProductList)
             .HasForeignKey(i => i.ProductListId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(l => l.Shares)
+            .WithOne()
+            .HasForeignKey(s => s.ProductListId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

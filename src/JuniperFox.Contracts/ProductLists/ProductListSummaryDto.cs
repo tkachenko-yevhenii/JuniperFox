@@ -7,4 +7,8 @@ public sealed class ProductListSummaryDto
     public required string Title { get; init; }
 
     public required DateTimeOffset CreatedAtUtc { get; init; }
+
+    public required bool IsOwnedByCurrentUser { get; init; }
+
+    public string? SharedByUserName { get; init; }
 }

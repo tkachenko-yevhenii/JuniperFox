@@ -17,7 +17,7 @@ public sealed class ListUpdatesHub(JuniperFoxDbContext db) : Hub
 
         var listExists = await db.ProductLists
             .AsNoTracking()
-            .AnyAsync(l => l.Id == listId && l.OwnerId == userId);
+            .AnyAsync(l => l.Id == listId && (l.OwnerId == userId || l.Shares.Any(s => s.UserId == userId)));
 
         if (!listExists)
             throw new HubException("List not found.");

@@ -17,6 +17,8 @@ public sealed class JuniperFoxDbContext : IdentityDbContext<ApplicationUser, Ide
 
     public DbSet<ProductListItem> ProductListItems => Set<ProductListItem>();
 
+    public DbSet<ProductListShare> ProductListShares => Set<ProductListShare>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

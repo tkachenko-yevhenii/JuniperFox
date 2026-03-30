@@ -30,11 +30,22 @@ public sealed class ProductListsController : ControllerBase
         return Guid.Parse(claim!);
     }
 
+    private Task<bool> CanAccessListAsync(Guid userId, Guid listId, CancellationToken cancellationToken) =>
+        _db.ProductLists
+            .AsNoTracking()
+            .Where(l => l.Id == listId)
+            .AnyAsync(l => l.OwnerId == userId || l.Shares.Any(s => s.UserId == userId), cancellationToken);
+
+    private Task<bool> IsOwnerAsync(Guid userId, Guid listId, CancellationToken cancellationToken) =>
+        _db.ProductLists
+            .AsNoTracking()
+            .AnyAsync(l => l.Id == listId && l.OwnerId == userId, cancellationToken);
+
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<ProductListSummaryDto>>> GetAll(CancellationToken cancellationToken)
     {
         var userId = GetUserId();
-        var lists = await _db.ProductLists
+        var ownedLists = await _db.ProductLists
             .AsNoTracking()
             .Where(l => l.OwnerId == userId)
             .OrderByDescending(l => l.CreatedAtUtc)
@@ -43,8 +54,38 @@ public sealed class ProductListsController : ControllerBase
                 Id = l.Id,
                 Title = l.Title,
                 CreatedAtUtc = l.CreatedAtUtc,
+                IsOwnedByCurrentUser = true,
+                SharedByUserName = null,
             })
             .ToListAsync(cancellationToken);
+
+        var sharedLists = await _db.ProductListShares
+            .AsNoTracking()
+            .Where(s => s.UserId == userId)
+            .Join(
+                _db.ProductLists.AsNoTracking(),
+                s => s.ProductListId,
+                l => l.Id,
+                (s, l) => new { l.Id, l.Title, l.CreatedAtUtc, l.OwnerId })
+            .Join(
+                _db.Users.AsNoTracking(),
+                l => l.OwnerId,
+                u => u.Id,
+                (l, owner) => new ProductListSummaryDto
+                {
+                    Id = l.Id,
+                    Title = l.Title,
+                    CreatedAtUtc = l.CreatedAtUtc,
+                    IsOwnedByCurrentUser = false,
+                    SharedByUserName = owner.UserName,
+                })
+            .OrderByDescending(l => l.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
+
+        var lists = ownedLists
+            .Concat(sharedLists)
+            .OrderByDescending(l => l.CreatedAtUtc)
+            .ToList();
 
         return Ok(lists);
     }
@@ -56,7 +97,9 @@ public sealed class ProductListsController : ControllerBase
         var list = await _db.ProductLists
             .AsNoTracking()
             .Include(l => l.Items.OrderBy(i => i.IsPurchased).ThenBy(i => i.SortOrder))
-            .FirstOrDefaultAsync(l => l.Id == id && l.OwnerId == userId, cancellationToken);
+            .FirstOrDefaultAsync(
+                l => l.Id == id && (l.OwnerId == userId || l.Shares.Any(s => s.UserId == userId)),
+                cancellationToken);
 
         if (list is null)
             return NotFound();
@@ -101,6 +144,8 @@ public sealed class ProductListsController : ControllerBase
             Id = list.Id,
             Title = list.Title,
             CreatedAtUtc = list.CreatedAtUtc,
+            IsOwnedByCurrentUser = true,
+            SharedByUserName = null,
         });
     }
 
@@ -125,6 +170,8 @@ public sealed class ProductListsController : ControllerBase
             Id = list.Id,
             Title = list.Title,
             CreatedAtUtc = list.CreatedAtUtc,
+            IsOwnedByCurrentUser = true,
+            SharedByUserName = null,
         });
     }
 
@@ -150,8 +197,7 @@ public sealed class ProductListsController : ControllerBase
             return BadRequest("Name is required.");
 
         var userId = GetUserId();
-        var list = await _db.ProductLists.FirstOrDefaultAsync(l => l.Id == id && l.OwnerId == userId, cancellationToken);
-        if (list is null)
+        if (!await CanAccessListAsync(userId, id, cancellationToken))
             return NotFound();
 
         var maxOrder = await _db.ProductListItems
@@ -190,8 +236,7 @@ public sealed class ProductListsController : ControllerBase
         CancellationToken cancellationToken)
     {
         var userId = GetUserId();
-        var list = await _db.ProductLists.FirstOrDefaultAsync(l => l.Id == listId && l.OwnerId == userId, cancellationToken);
-        if (list is null)
+        if (!await CanAccessListAsync(userId, listId, cancellationToken))
             return NotFound();
 
         var item = await _db.ProductListItems.FirstOrDefaultAsync(i => i.Id == itemId && i.ProductListId == listId, cancellationToken);
@@ -202,8 +247,6 @@ public sealed class ProductListsController : ControllerBase
         {
             if (request.IsPurchased)
             {
-                // When marking as purchased, put the item at the TOP of the purchased block.
-                // We can safely use negative SortOrder values since ordering is per-group (IsPurchased first).
                 var minPurchased = await _db.ProductListItems
                     .Where(i => i.ProductListId == listId && i.Id != itemId && i.IsPurchased)
                     .MinAsync(i => (int?)i.SortOrder, cancellationToken) ?? 0;
@@ -211,7 +254,6 @@ public sealed class ProductListsController : ControllerBase
             }
             else
             {
-                // When unmarking as purchased, put the item at the TOP of the open block.
                 var minOpen = await _db.ProductListItems
                     .Where(i => i.ProductListId == listId && i.Id != itemId && !i.IsPurchased)
                     .MinAsync(i => (int?)i.SortOrder, cancellationToken) ?? 0;
@@ -238,8 +280,7 @@ public sealed class ProductListsController : ControllerBase
     public async Task<IActionResult> DeleteItem(Guid listId, Guid itemId, CancellationToken cancellationToken)
     {
         var userId = GetUserId();
-        var list = await _db.ProductLists.FirstOrDefaultAsync(l => l.Id == listId && l.OwnerId == userId, cancellationToken);
-        if (list is null)
+        if (!await CanAccessListAsync(userId, listId, cancellationToken))
             return NotFound();
 
         var item = await _db.ProductListItems.FirstOrDefaultAsync(i => i.Id == itemId && i.ProductListId == listId, cancellationToken);
@@ -249,6 +290,122 @@ public sealed class ProductListsController : ControllerBase
         _db.ProductListItems.Remove(item);
         await _db.SaveChangesAsync(cancellationToken);
         await _hub.Clients.Group(ListHubGroups.ForList(listId)).SendAsync("ListChanged", listId, cancellationToken);
+        return NoContent();
+    }
+
+    [HttpGet("users/search")]
+    public async Task<ActionResult<IReadOnlyList<ShareUserSearchResultDto>>> SearchUsers(
+        [FromQuery] string query,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        var term = query.Trim();
+        if (term.Length < 3)
+            return Ok(Array.Empty<ShareUserSearchResultDto>());
+
+        var users = await _db.Users
+            .AsNoTracking()
+            .Where(u => u.Id != userId && u.UserName != null && EF.Functions.ILike(u.UserName, $"%{term}%"))
+            .OrderBy(u => u.UserName)
+            .Take(10)
+            .Select(u => new ShareUserSearchResultDto
+            {
+                Id = u.Id,
+                UserName = u.UserName!,
+            })
+            .ToListAsync(cancellationToken);
+
+        return Ok(users);
+    }
+
+    [HttpPost("{id:guid}/shares")]
+    public async Task<IActionResult> ShareList(Guid id, [FromBody] ShareProductListRequest request, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (!await IsOwnerAsync(userId, id, cancellationToken))
+            return NotFound();
+
+        if (request.UserId == userId)
+            return BadRequest("You already own this list.");
+
+        var targetExists = await _db.Users
+            .AsNoTracking()
+            .AnyAsync(u => u.Id == request.UserId, cancellationToken);
+        if (!targetExists)
+            return BadRequest("User not found.");
+
+        var alreadyShared = await _db.ProductListShares
+            .AsNoTracking()
+            .AnyAsync(s => s.ProductListId == id && s.UserId == request.UserId, cancellationToken);
+        if (alreadyShared)
+            return NoContent();
+
+        _db.ProductListShares.Add(new ProductListShare
+        {
+            ProductListId = id,
+            UserId = request.UserId,
+            SharedAtUtc = DateTimeOffset.UtcNow,
+        });
+        await _db.SaveChangesAsync(cancellationToken);
+        return NoContent();
+    }
+
+    [HttpGet("{id:guid}/shares")]
+    public async Task<ActionResult<IReadOnlyList<ProductListShareMemberDto>>> GetShares(Guid id, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (!await IsOwnerAsync(userId, id, cancellationToken))
+            return NotFound();
+
+        var members = await _db.ProductListShares
+            .AsNoTracking()
+            .Where(s => s.ProductListId == id)
+            .Join(
+                _db.Users.AsNoTracking(),
+                s => s.UserId,
+                u => u.Id,
+                (s, user) => new ProductListShareMemberDto
+                {
+                    UserId = user.Id,
+                    UserName = user.UserName!,
+                })
+            .OrderBy(m => m.UserName)
+            .ToListAsync(cancellationToken);
+
+        return Ok(members);
+    }
+
+    [HttpDelete("{id:guid}/shares/{targetUserId:guid}")]
+    public async Task<IActionResult> Unshare(Guid id, Guid targetUserId, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (!await IsOwnerAsync(userId, id, cancellationToken))
+            return NotFound();
+
+        var share = await _db.ProductListShares
+            .FirstOrDefaultAsync(s => s.ProductListId == id && s.UserId == targetUserId, cancellationToken);
+        if (share is null)
+            return NotFound();
+
+        _db.ProductListShares.Remove(share);
+        await _db.SaveChangesAsync(cancellationToken);
+        return NoContent();
+    }
+
+    [HttpDelete("{id:guid}/shares/me")]
+    public async Task<IActionResult> LeaveSharedList(Guid id, CancellationToken cancellationToken)
+    {
+        var userId = GetUserId();
+        if (await IsOwnerAsync(userId, id, cancellationToken))
+            return BadRequest("Owner cannot leave own list.");
+
+        var share = await _db.ProductListShares
+            .FirstOrDefaultAsync(s => s.ProductListId == id && s.UserId == userId, cancellationToken);
+        if (share is null)
+            return NotFound();
+
+        _db.ProductListShares.Remove(share);
+        await _db.SaveChangesAsync(cancellationToken);
         return NoContent();
     }
 }
