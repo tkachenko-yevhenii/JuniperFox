@@ -55,7 +55,9 @@ else
                              class="jf-list-row jf-item-row @(item.IsPurchased ? "jf-item-purchased" : null) @(_busyItemId == item.Id ? "jf-item-row-busy" : null)"
                              role="button"
                              tabindex="0"
-                             @onclick="() => TogglePurchasedAsync(item)"
+                             @onclick="() => OnRowClickAsync(item)"
+                             @ontouchstart="e => OnItemTouchStart(item, e)"
+                             @ontouchend="e => OnItemTouchEndAsync(item, e)"
                              @onkeydown="e => OnRowKeyDownAsync(item, e)">
                             <span class="jf-item-label">
                                 @item.Name
@@ -86,7 +88,9 @@ else
                              class="jf-list-row jf-item-row jf-item-purchased @(_busyItemId == item.Id ? "jf-item-row-busy" : null)"
                              role="button"
                              tabindex="0"
-                             @onclick="() => TogglePurchasedAsync(item)"
+                             @onclick="() => OnRowClickAsync(item)"
+                             @ontouchstart="e => OnItemTouchStart(item, e)"
+                             @ontouchend="e => OnItemTouchEndAsync(item, e)"
                              @onkeydown="e => OnRowKeyDownAsync(item, e)">
                             <span class="jf-item-label">
                                 @item.Name
@@ -173,6 +177,13 @@ else
     private bool _addBusy;
     private bool _undoBusy;
     private bool IsActionBusy => _busyItemId.HasValue || _addBusy || _undoBusy;
+    private Guid? _touchItemId;
+    private double _touchStartX;
+    private double _touchStartY;
+    private Guid? _suppressTapItemId;
+    private DateTimeOffset _suppressTapUntilUtc;
+    private const double SwipeThresholdPx = 70;
+    private const double SwipeVerticalTolerancePx = 36;
 
     protected override async Task OnInitializedAsync()
     {
@@ -346,6 +357,71 @@ else
     {
         if (e.Key == "Enter" || e.Key == " ")
             await TogglePurchasedAsync(item);
+    }
+
+    private async Task OnRowClickAsync(ProductListItemDto item)
+    {
+        if (ShouldSuppressTap(item.Id))
+            return;
+
+        await TogglePurchasedAsync(item);
+    }
+
+    private void OnItemTouchStart(ProductListItemDto item, TouchEventArgs e)
+    {
+        if (e.Touches is null || e.Touches.Length == 0)
+            return;
+
+        var touch = e.Touches[0];
+        _touchItemId = item.Id;
+        _touchStartX = touch.ClientX;
+        _touchStartY = touch.ClientY;
+    }
+
+    private async Task OnItemTouchEndAsync(ProductListItemDto item, TouchEventArgs e)
+    {
+        if (_touchItemId != item.Id)
+            return;
+
+        _touchItemId = null;
+        if (e.ChangedTouches is null || e.ChangedTouches.Length == 0)
+            return;
+
+        var touch = e.ChangedTouches[0];
+        var deltaX = touch.ClientX - _touchStartX;
+        var deltaY = touch.ClientY - _touchStartY;
+        var absX = Math.Abs(deltaX);
+        var absY = Math.Abs(deltaY);
+
+        if (absX < SwipeThresholdPx || absY > SwipeVerticalTolerancePx)
+            return;
+
+        SuppressTap(item.Id);
+        if (deltaX < 0)
+        {
+            await TogglePurchasedAsync(item);
+            return;
+        }
+
+        await DeleteItemAsync(item);
+    }
+
+    private void SuppressTap(Guid itemId)
+    {
+        _suppressTapItemId = itemId;
+        _suppressTapUntilUtc = DateTimeOffset.UtcNow.AddMilliseconds(450);
+    }
+
+    private bool ShouldSuppressTap(Guid itemId)
+    {
+        if (_suppressTapItemId != itemId)
+            return false;
+
+        if (DateTimeOffset.UtcNow > _suppressTapUntilUtc)
+            return false;
+
+        _suppressTapItemId = null;
+        return true;
     }
 
     private async Task TogglePurchasedAsync(ProductListItemDto item)
