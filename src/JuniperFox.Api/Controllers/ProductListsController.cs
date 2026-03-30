@@ -118,6 +118,7 @@ public sealed class ProductListsController : ControllerBase
 
         list.Title = title;
         await _db.SaveChangesAsync(cancellationToken);
+        await _hub.Clients.Group(ListHubGroups.ForList(id)).SendAsync("ListChanged", id, cancellationToken);
 
         return Ok(new ProductListSummaryDto
         {
@@ -137,6 +138,7 @@ public sealed class ProductListsController : ControllerBase
 
         _db.ProductLists.Remove(list);
         await _db.SaveChangesAsync(cancellationToken);
+        await _hub.Clients.Group(ListHubGroups.ForList(id)).SendAsync("ListChanged", id, cancellationToken);
         return NoContent();
     }
 

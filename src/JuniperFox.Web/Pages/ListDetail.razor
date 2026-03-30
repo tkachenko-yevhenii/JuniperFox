@@ -1,10 +1,13 @@
 @page "/lists/{Id:guid}"
 @using System.Net
 @using Microsoft.AspNetCore.SignalR.Client
+@using Microsoft.JSInterop
+@using JuniperFox.Web.Services
 @implements IAsyncDisposable
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager Navigation
 @inject LastOpenedListStorage LastOpenedList
+@inject IJSRuntime JS
 
 <PageTitle>@(_detail?.Title ?? "List") — JuniperFox</PageTitle>
 
@@ -124,7 +127,12 @@ else
     private string? _error;
     private Guid? _busyItemId;
     private HubConnection? _hubConnection;
-    private bool _isLoading;
+    private Guid? _hubSubscribedListId;
+    private IJSObjectReference? _crossTabModule;
+    private DotNetObjectReference<ListDetail>? _crossTabDotNetRef;
+    private int _crossTabSubscriptionId;
+    private Guid _crossTabBoundListId;
+    private readonly SemaphoreSlim _loadLock = new(1, 1);
 
     private bool _toastVisible;
     private string _toastMessage = string.Empty;
@@ -140,15 +148,70 @@ else
         await ConnectRealtimeAsync();
     }
 
-    private async Task LoadAsync()
+    protected override async Task OnParametersSetAsync()
     {
-        if (_isLoading)
+        await base.OnParametersSetAsync();
+
+        if (_hubConnection is null || _hubSubscribedListId == Id)
             return;
 
-        _isLoading = true;
-        _error = null;
         try
         {
+            if (_hubSubscribedListId is { } oldId &&
+                _hubConnection.State == HubConnectionState.Connected)
+            {
+                await _hubConnection.InvokeAsync("UnsubscribeFromList", oldId);
+            }
+
+            if (_hubConnection.State == HubConnectionState.Connected)
+            {
+                await _hubConnection.InvokeAsync("SubscribeToList", Id);
+                _hubSubscribedListId = Id;
+            }
+        }
+        catch
+        {
+            // Keep page usable; cross-tab sync may still refresh.
+        }
+
+        await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_crossTabBoundListId == Id && _crossTabSubscriptionId != 0)
+            return;
+
+        try
+        {
+            _crossTabModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./js/listCrossTab.js");
+            _crossTabDotNetRef ??= DotNetObjectReference.Create(this);
+
+            if (_crossTabSubscriptionId != 0)
+            {
+                await _crossTabModule.InvokeVoidAsync("unsubscribeFromList", _crossTabSubscriptionId);
+                _crossTabSubscriptionId = 0;
+            }
+
+            _crossTabSubscriptionId = await _crossTabModule.InvokeAsync<int>(
+                "subscribeToList",
+                _crossTabDotNetRef,
+                Id.ToString());
+            _crossTabBoundListId = Id;
+        }
+        catch
+        {
+            // Optional; SignalR remains primary when connected.
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        await _loadLock.WaitAsync();
+        try
+        {
+            _error = null;
+
             var client = HttpClientFactory.CreateClient("Api");
             var response = await client.GetAsync($"api/product-lists/{Id}");
             if (response.StatusCode == HttpStatusCode.Unauthorized)
@@ -176,7 +239,7 @@ else
         }
         finally
         {
-            _isLoading = false;
+            _loadLock.Release();
         }
     }
 
@@ -186,7 +249,13 @@ else
         var hubUri = new Uri(client.BaseAddress!, "hubs/lists");
 
         _hubConnection = new HubConnectionBuilder()
-            .WithUrl(hubUri)
+            .WithUrl(hubUri, options =>
+            {
+                options.HttpMessageHandlerFactory = inner => new IncludeRequestCredentialsHandler
+                {
+                    InnerHandler = inner,
+                };
+            })
             .WithAutomaticReconnect()
             .Build();
 
@@ -195,17 +264,47 @@ else
             if (listId != Id)
                 return;
 
-            await InvokeAsync(LoadAsync);
+            await InvokeAsync(async () =>
+            {
+                await LoadAsync();
+                StateHasChanged();
+            });
         });
 
         try
         {
             await _hubConnection.StartAsync();
             await _hubConnection.InvokeAsync("SubscribeToList", Id);
+            _hubSubscribedListId = Id;
         }
         catch
         {
             // Real-time is optional: keep list usable with manual/REST refresh.
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnListSyncFromOtherTab()
+    {
+        await InvokeAsync(async () =>
+        {
+            await LoadAsync();
+            StateHasChanged();
+        });
+    }
+
+    private async Task PublishCrossTabListChangedAsync()
+    {
+        if (_crossTabModule is null)
+            return;
+
+        try
+        {
+            await _crossTabModule.InvokeVoidAsync("publishListChanged", Id.ToString());
+        }
+        catch
+        {
+            // Ignore
         }
     }
 
@@ -247,6 +346,7 @@ else
             }
 
             await LoadAsync();
+            await PublishCrossTabListChangedAsync();
         }
         finally
         {
@@ -281,6 +381,7 @@ else
             }
 
             await LoadAsync();
+            await PublishCrossTabListChangedAsync();
             await ShowDeletedToastAsync(name, qty);
         }
         finally
@@ -356,6 +457,7 @@ else
         }
 
         await LoadAsync();
+        await PublishCrossTabListChangedAsync();
     }
 
     private async Task AddItemAsync()
@@ -385,9 +487,23 @@ else
             return;
         }
 
+        var added = await response.Content.ReadFromJsonAsync<ProductListItemDto>();
+        if (added is not null && _detail is not null)
+        {
+            _detail = new ProductListDetailDto
+            {
+                Id = _detail.Id,
+                Title = _detail.Title,
+                CreatedAtUtc = _detail.CreatedAtUtc,
+                Items = [.._detail.Items, added],
+            };
+            await InvokeAsync(StateHasChanged);
+        }
+
         _itemName = string.Empty;
         _quantity = null;
         await LoadAsync();
+        await PublishCrossTabListChangedAsync();
     }
 
     public async ValueTask DisposeAsync()
@@ -396,19 +512,52 @@ else
         _toastCts?.Dispose();
         _toastCts = null;
 
-        if (_hubConnection is null)
-            return;
-
-        try
+        if (_crossTabModule is not null && _crossTabSubscriptionId != 0)
         {
-            if (_hubConnection.State == HubConnectionState.Connected)
-                await _hubConnection.InvokeAsync("UnsubscribeFromList", Id);
-        }
-        catch
-        {
-            // Ignore disconnect errors during page disposal/navigation.
+            try
+            {
+                await _crossTabModule.InvokeVoidAsync("unsubscribeFromList", _crossTabSubscriptionId);
+            }
+            catch
+            {
+                // Ignore disposal errors.
+            }
+
+            _crossTabSubscriptionId = 0;
         }
 
-        await _hubConnection.DisposeAsync();
+        _crossTabDotNetRef?.Dispose();
+        _crossTabDotNetRef = null;
+
+        if (_crossTabModule is not null)
+        {
+            try
+            {
+                await _crossTabModule.DisposeAsync();
+            }
+            catch
+            {
+                // Ignore disposal errors.
+            }
+
+            _crossTabModule = null;
+        }
+
+        if (_hubConnection is not null)
+        {
+            try
+            {
+                if (_hubConnection.State == HubConnectionState.Connected)
+                    await _hubConnection.InvokeAsync("UnsubscribeFromList", Id);
+            }
+            catch
+            {
+                // Ignore disconnect errors during page disposal/navigation.
+            }
+
+            await _hubConnection.DisposeAsync();
+        }
+
+        _loadLock.Dispose();
     }
 }
