@@ -18,6 +18,7 @@ window.JuniperFox = {
 
   var KEYBOARD_CLASS = 'jf-keyboard-open';
   var KEYBOARD_MIN_DIFF = 120;
+  var baselineViewportHeight = window.visualViewport.height;
 
   function isEditableElement(element) {
     if (!element) {
@@ -32,14 +33,31 @@ window.JuniperFox = {
     return element.isContentEditable === true;
   }
 
+  function shouldRefreshBaseline(isEditing, heightDiff, viewportOffsetTop) {
+    return !isEditing && heightDiff < 48 && viewportOffsetTop < 8;
+  }
+
   function updateKeyboardState() {
     var activeElement = document.activeElement;
     var isEditing = isEditableElement(activeElement);
-    var viewportHeight = window.visualViewport.height;
-    var heightDiff = window.innerHeight - viewportHeight;
-    var isKeyboardOpen = isEditing && heightDiff > KEYBOARD_MIN_DIFF;
+    var viewport = window.visualViewport;
+    var viewportHeight = viewport.height;
+    var viewportOffsetTop = viewport.offsetTop || 0;
+
+    if (viewportHeight > baselineViewportHeight) {
+      baselineViewportHeight = viewportHeight;
+    }
+
+    var baselineDiff = baselineViewportHeight - viewportHeight;
+    var isKeyboardOpenByHeight = baselineDiff > KEYBOARD_MIN_DIFF;
+    var isKeyboardOpenByOffset = viewportOffsetTop > 28;
+    var isKeyboardOpen = isEditing && (isKeyboardOpenByHeight || isKeyboardOpenByOffset);
 
     document.body.classList.toggle(KEYBOARD_CLASS, isKeyboardOpen);
+
+    if (shouldRefreshBaseline(isEditing, baselineDiff, viewportOffsetTop)) {
+      baselineViewportHeight = viewportHeight;
+    }
   }
 
   window.visualViewport.addEventListener('resize', updateKeyboardState);
