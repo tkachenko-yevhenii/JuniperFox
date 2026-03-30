@@ -202,17 +202,20 @@ public sealed class ProductListsController : ControllerBase
         {
             if (request.IsPurchased)
             {
-                var maxOther = await _db.ProductListItems
-                    .Where(i => i.ProductListId == listId && i.Id != itemId)
-                    .MaxAsync(i => (int?)i.SortOrder, cancellationToken) ?? -1;
-                item.SortOrder = maxOther + 1;
+                // When marking as purchased, put the item at the TOP of the purchased block.
+                // We can safely use negative SortOrder values since ordering is per-group (IsPurchased first).
+                var minPurchased = await _db.ProductListItems
+                    .Where(i => i.ProductListId == listId && i.Id != itemId && i.IsPurchased)
+                    .MinAsync(i => (int?)i.SortOrder, cancellationToken) ?? 0;
+                item.SortOrder = minPurchased - 1;
             }
             else
             {
-                var maxOpen = await _db.ProductListItems
+                // When unmarking as purchased, put the item at the TOP of the open block.
+                var minOpen = await _db.ProductListItems
                     .Where(i => i.ProductListId == listId && i.Id != itemId && !i.IsPurchased)
-                    .MaxAsync(i => (int?)i.SortOrder, cancellationToken) ?? -1;
-                item.SortOrder = maxOpen + 1;
+                    .MinAsync(i => (int?)i.SortOrder, cancellationToken) ?? 0;
+                item.SortOrder = minOpen - 1;
             }
 
             item.IsPurchased = request.IsPurchased;

@@ -1,9 +1,30 @@
 @page "/lists"
 @using System.Net
+@implements IDisposable
 @inject IHttpClientFactory HttpClientFactory
 @inject NavigationManager Navigation
+@inject LastOpenedListStorage LastOpenedList
 
 <PageTitle>Lists — JuniperFox</PageTitle>
+
+@if (IsActionBusy)
+{
+    <div class="jf-busy-overlay" role="status" aria-live="polite" aria-label="Loading">
+        <div class="jf-spinner" aria-hidden="true"></div>
+    </div>
+}
+
+@if (_toastVisible)
+{
+    <div class="jf-toast-host" role="status" aria-live="polite">
+        <div class="jf-toast">
+            <span class="jf-toast-msg">@_toastMessage</span>
+            <div class="jf-toast-actions">
+                <button type="button" class="jf-btn jf-btn-ghost" disabled="@IsActionBusy" @onclick="UndoDeleteListAsync">Undo</button>
+            </div>
+        </div>
+    </div>
+}
 
 <h1>Lists</h1>
 <p class="jf-muted" style="margin-bottom: 1.25rem;">Pick a list or create a new one.</p>
@@ -26,10 +47,22 @@ else
     <div class="jf-stack-tight" style="margin-bottom: 1.5rem;">
         @foreach (var l in _lists)
         {
-            <NavLink href="@($"/lists/{l.Id}")" class="jf-list-row" style="text-decoration: none; color: inherit;">
-                <span style="font-weight: 500;">@l.Title</span>
-                <span class="jf-muted" style="font-size: 1.25rem;" aria-hidden="true">›</span>
-            </NavLink>
+            <div @key="l.Id" class="jf-list-row jf-lists-row">
+                <NavLink href="@($"/lists/{l.Id}")" class="jf-lists-row-link">
+                    <span style="font-weight: 500;">@l.Title</span>
+                    <span class="jf-muted" style="font-size: 1.25rem;" aria-hidden="true">›</span>
+                </NavLink>
+                <button type="button"
+                        class="jf-item-delete"
+                        title="Delete list"
+                        aria-label="Delete list"
+                        disabled="@(_busyDeletingId == l.Id || IsActionBusy)"
+                        @onclick="() => DeleteListAsync(l.Id)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                    </svg>
+                </button>
+            </div>
         }
     </div>
 }
@@ -37,15 +70,24 @@ else
 <div class="jf-card jf-stack-tight">
     <div class="jf-field">
         <label>New list</label>
-        <InputText class="jf-input" @bind-Value="_newTitle" placeholder="e.g. Weekly groceries" />
+        <InputText class="jf-input" @bind-Value="_newTitle" placeholder="e.g. Weekly groceries" disabled="@IsActionBusy" />
     </div>
-    <button type="button" class="jf-btn jf-btn-primary" style="width: 100%;" @onclick="CreateListAsync">Create</button>
+    <button type="button" class="jf-btn jf-btn-primary" style="width: 100%;" disabled="@IsActionBusy" @onclick="CreateListAsync">Create</button>
 </div>
 
 @code {
     private List<ProductListSummaryDto>? _lists;
     private string _newTitle = string.Empty;
     private string? _error;
+
+    private bool _toastVisible;
+    private string _toastMessage = string.Empty;
+    private ProductListDetailDto? _undoListSnapshot;
+    private CancellationTokenSource? _toastCts;
+    private Guid? _busyDeletingId;
+    private bool _busyCreating;
+    private bool _busyUndo;
+    private bool IsActionBusy => _busyCreating || _busyDeletingId.HasValue || _busyUndo;
 
     protected override async Task OnInitializedAsync()
     {
@@ -78,23 +120,227 @@ else
             return;
 
         _error = null;
-        var client = HttpClientFactory.CreateClient("Api");
-        var response = await client.PostAsJsonAsync(
-            "api/product-lists",
-            new CreateProductListRequest { Title = _newTitle.Trim() });
-        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        _busyCreating = true;
+        await InvokeAsync(StateHasChanged);
+        try
         {
-            Navigation.NavigateTo("/login");
+            var client = HttpClientFactory.CreateClient("Api");
+            var response = await client.PostAsJsonAsync(
+                "api/product-lists",
+                new CreateProductListRequest { Title = _newTitle.Trim() });
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = "Could not create list.";
+                return;
+            }
+
+            _newTitle = string.Empty;
+            await LoadAsync();
+        }
+        finally
+        {
+            _busyCreating = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task DeleteListAsync(Guid id)
+    {
+        if (_busyDeletingId.HasValue)
+            return;
+
+        _busyDeletingId = id;
+        _error = null;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            var client = HttpClientFactory.CreateClient("Api");
+            var detailResponse = await client.GetAsync($"api/product-lists/{id}");
+            if (detailResponse.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            if (!detailResponse.IsSuccessStatusCode)
+            {
+                _error = "Could not load list.";
+                return;
+            }
+
+            var snapshot = await detailResponse.Content.ReadFromJsonAsync<ProductListDetailDto>();
+            if (snapshot is null)
+                return;
+
+            var deleteResponse = await client.DeleteAsync($"api/product-lists/{id}");
+            if (deleteResponse.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            if (!deleteResponse.IsSuccessStatusCode)
+            {
+                _error = "Could not delete list.";
+                return;
+            }
+
+            if (await LastOpenedList.GetAsync() == id)
+                await LastOpenedList.ClearAsync();
+
+            _undoListSnapshot = snapshot;
+            await ShowListDeletedToastAsync(snapshot.Title);
+            await LoadAsync();
+        }
+        finally
+        {
+            _busyDeletingId = null;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ShowListDeletedToastAsync(string title)
+    {
+        _toastCts?.Cancel();
+        _toastCts?.Dispose();
+        _toastCts = new CancellationTokenSource();
+        _toastMessage = $"\"{title}\" removed.";
+        _toastVisible = true;
+        await InvokeAsync(StateHasChanged);
+
+        _ = DismissToastAfterDelayAsync(_toastCts.Token);
+    }
+
+    private async Task DismissToastAfterDelayAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(3000, token);
+        }
+        catch (OperationCanceledException)
+        {
             return;
         }
 
-        if (!response.IsSuccessStatusCode)
+        await InvokeAsync(() =>
         {
-            _error = "Could not create list.";
-            return;
-        }
+            _toastVisible = false;
+            _undoListSnapshot = null;
+            StateHasChanged();
+        });
+    }
 
-        _newTitle = string.Empty;
-        await LoadAsync();
+    private async Task UndoDeleteListAsync()
+    {
+        if (_undoListSnapshot is null)
+            return;
+
+        _busyUndo = true;
+        _toastCts?.Cancel();
+        var snap = _undoListSnapshot;
+        _undoListSnapshot = null;
+        _toastVisible = false;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            _error = null;
+            var client = HttpClientFactory.CreateClient("Api");
+            var createResponse = await client.PostAsJsonAsync(
+                "api/product-lists",
+                new CreateProductListRequest { Title = snap.Title });
+
+            if (createResponse.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            if (!createResponse.IsSuccessStatusCode)
+            {
+                _error = "Could not restore list.";
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+
+            var created = await createResponse.Content.ReadFromJsonAsync<ProductListSummaryDto>();
+            if (created is null)
+            {
+                _error = "Could not restore list.";
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+
+            var oldToNew = new Dictionary<Guid, Guid>();
+            foreach (var item in snap.Items.OrderBy(i => i.SortOrder))
+            {
+                var itemResponse = await client.PostAsJsonAsync(
+                    $"api/product-lists/{created.Id}/items",
+                    new AddProductListItemRequest
+                    {
+                        Name = item.Name.Trim(),
+                        Quantity = item.Quantity,
+                    });
+
+                if (itemResponse.StatusCode == HttpStatusCode.Unauthorized)
+                {
+                    Navigation.NavigateTo("/login");
+                    return;
+                }
+
+                if (!itemResponse.IsSuccessStatusCode)
+                {
+                    _error = "Could not restore item.";
+                    await InvokeAsync(StateHasChanged);
+                    return;
+                }
+
+                var added = await itemResponse.Content.ReadFromJsonAsync<ProductListItemDto>();
+                if (added is not null)
+                    oldToNew[item.Id] = added.Id;
+            }
+
+            foreach (var item in snap.Items.Where(i => i.IsPurchased))
+            {
+                if (!oldToNew.TryGetValue(item.Id, out var newId))
+                    continue;
+
+                var patchResponse = await client.PatchAsJsonAsync(
+                    $"api/product-lists/{created.Id}/items/{newId}",
+                    new SetProductListItemPurchasedRequest { IsPurchased = true });
+
+                if (patchResponse.StatusCode == HttpStatusCode.Unauthorized)
+                {
+                    Navigation.NavigateTo("/login");
+                    return;
+                }
+
+                if (!patchResponse.IsSuccessStatusCode)
+                {
+                    _error = "Could not restore item.";
+                    await InvokeAsync(StateHasChanged);
+                    return;
+                }
+            }
+
+            await LoadAsync();
+        }
+        finally
+        {
+            _busyUndo = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    public void Dispose()
+    {
+        _toastCts?.Cancel();
+        _toastCts?.Dispose();
     }
 }

@@ -46,15 +46,28 @@
             return;
         }
 
+        var pin = _model.Pin;
         var client = HttpClientFactory.CreateClient("Api");
         var response = await client.PostAsJsonAsync(
             "api/auth/register",
-            new RegisterRequest { UserName = userName, Pin = _model.Pin });
+            new RegisterRequest { UserName = userName, Pin = pin });
 
         if (!response.IsSuccessStatusCode)
         {
             var body = await response.Content.ReadAsStringAsync();
             _error = string.IsNullOrWhiteSpace(body) ? "Registration failed." : body;
+            return;
+        }
+
+        // Ensure auth cookie/session exists in the browser by performing an explicit login.
+        // This keeps the user signed in immediately after registration.
+        var loginResponse = await client.PostAsJsonAsync(
+            "api/auth/login",
+            new LoginRequest { UserName = userName, Pin = pin });
+
+        if (!loginResponse.IsSuccessStatusCode)
+        {
+            _error = "Sign-in after registration failed.";
             return;
         }
 
