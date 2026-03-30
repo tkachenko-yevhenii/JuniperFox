@@ -11,10 +11,17 @@ public static class Program
 {
     public static async Task Main(string[] args)
     {
+        var baseDirectory = AppContext.BaseDirectory;
+        var nestedWebRoot = Path.Combine(baseDirectory, "wwwroot", "wwwroot");
+        var defaultWebRoot = Path.Combine(baseDirectory, "wwwroot");
+        var webRootPath = File.Exists(Path.Combine(nestedWebRoot, "index.html"))
+            ? nestedWebRoot
+            : defaultWebRoot;
+
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         {
             Args = args,
-            WebRootPath = Path.Combine(AppContext.BaseDirectory, "wwwroot")
+            WebRootPath = webRootPath
         });
 
         // Avoid duplicate lines in the debugger: default Console + Debug providers plus Serilog.
