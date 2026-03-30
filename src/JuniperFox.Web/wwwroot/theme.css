@@ -243,6 +243,9 @@ a:hover {
   gap: 0.75rem;
   cursor: pointer;
   user-select: none;
+  touch-action: pan-y;
+  will-change: transform;
+  transition: transform 0.12s ease;
 }
 
 .jf-item-row:hover {
@@ -456,6 +459,41 @@ a:hover {
   display: flex;
   flex-direction: column;
   margin-top: 0.15rem;
+}
+
+.jf-list-detail-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.jf-list-detail-title-row h1 {
+  margin: 0;
+}
+
+.jf-list-share-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.15rem;
+  height: 2.15rem;
+  border: 1px solid var(--jf-border);
+  border-radius: var(--jf-radius-pill);
+  background: transparent;
+  color: var(--jf-text-muted);
+  cursor: pointer;
+}
+
+.jf-list-share-icon:hover {
+  color: var(--jf-text);
+  background: var(--jf-surface-hover);
+}
+
+.jf-list-share-icon svg {
+  width: 1.1rem;
+  height: 1.1rem;
 }
 
 .jf-list-detail-add-toggle {

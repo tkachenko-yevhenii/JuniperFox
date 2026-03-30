@@ -42,7 +42,97 @@ else
             {
                 <p class="jf-error">@_error</p>
             }
-            <h1>@_detail.Title</h1>
+            <div class="jf-list-detail-title-row">
+                <h1>@_detail.Title</h1>
+                @if (_canShare)
+                {
+                    <button type="button"
+                            class="jf-list-share-icon"
+                            title="Share list"
+                            aria-label="Share list"
+                            disabled="@(_shareBusy || IsActionBusy)"
+                            @onclick="ToggleSharePanelAsync">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M7 12a3 3 0 100-6 3 3 0 000 6zm10 10a3 3 0 100-6 3 3 0 000 6zM17 8a3 3 0 100-6 3 3 0 000 6zM9.58 10.42l4.84-2.84M9.58 13.58l4.84 2.84" />
+                        </svg>
+                    </button>
+                }
+            </div>
+            @if (_canShare && _sharePanelOpen)
+            {
+                <div class="jf-card jf-stack-tight" style="margin-bottom: 0.85rem;">
+                    <div class="jf-field">
+                        <label>Find account to share with</label>
+                        <input class="jf-input"
+                               value="@_shareQuery"
+                               placeholder="At least 3 characters"
+                               @oninput="OnShareQueryChanged"
+                               disabled="@_shareBusy" />
+                    </div>
+                    @if (_shareQuery.Trim().Length > 0 && _shareQuery.Trim().Length < 3)
+                    {
+                        <p class="jf-muted" style="margin: 0;">Type at least 3 symbols.</p>
+                    }
+                    @if (_shareSearchBusy)
+                    {
+                        <p class="jf-muted" style="margin: 0;">Searching…</p>
+                    }
+                    else if (_shareQuery.Trim().Length >= 3)
+                    {
+                        @if (_shareCandidates.Count == 0)
+                        {
+                            <p class="jf-muted" style="margin: 0;">No users found.</p>
+                        }
+                        else
+                        {
+                            <div class="jf-stack-tight">
+                                @foreach (var user in _shareCandidates)
+                                {
+                                    var selected = _selectedShareUserId == user.Id;
+                                    <button type="button"
+                                            class="jf-btn @(selected ? "jf-btn-primary" : "jf-btn-ghost")"
+                                            style="justify-content: flex-start;"
+                                            @onclick="() => SelectShareCandidate(user.Id)">
+                                        @user.UserName
+                                    </button>
+                                }
+                            </div>
+                        }
+                    }
+                    @if (_shareMembers.Count > 0)
+                    {
+                        <div class="jf-stack-tight" style="margin-top: 0.5rem;">
+                            <p class="jf-muted" style="margin: 0;">Already shared with</p>
+                            @foreach (var member in _shareMembers)
+                            {
+                                <div class="jf-list-row" style="margin-bottom: 0;">
+                                    <span>@member.UserName</span>
+                                    <button type="button"
+                                            class="jf-btn jf-btn-ghost"
+                                            disabled="@_shareBusy"
+                                            @onclick="() => UnshareAsync(member.UserId)">
+                                        Unshare
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
+                    <div style="display: flex; gap: 0.75rem;">
+                        <button type="button"
+                                class="jf-btn jf-btn-primary"
+                                disabled="@(_selectedShareUserId is null || _shareBusy)"
+                                @onclick="ShareSelectedAsync">
+                            OK
+                        </button>
+                        <button type="button"
+                                class="jf-btn jf-btn-ghost"
+                                disabled="@_shareBusy"
+                                @onclick="CloseSharePanel">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            }
 
             @if (_detail.Items.Count > 0)
             {
@@ -53,11 +143,14 @@ else
                     {
                         <div @key="item.Id"
                              class="jf-list-row jf-item-row @(item.IsPurchased ? "jf-item-purchased" : null) @(_busyItemId == item.Id ? "jf-item-row-busy" : null)"
+                             style="@GetItemRowStyle(item.Id)"
                              role="button"
                              tabindex="0"
                              @onclick="() => OnRowClickAsync(item)"
                              @ontouchstart="e => OnItemTouchStart(item, e)"
+                             @ontouchmove="e => OnItemTouchMove(item, e)"
                              @ontouchend="e => OnItemTouchEndAsync(item, e)"
+                             @ontouchcancel="() => OnItemTouchCancel(item)"
                              @onkeydown="e => OnRowKeyDownAsync(item, e)">
                             <span class="jf-item-label">
                                 @item.Name
@@ -86,11 +179,14 @@ else
                     {
                         <div @key="item.Id"
                              class="jf-list-row jf-item-row jf-item-purchased @(_busyItemId == item.Id ? "jf-item-row-busy" : null)"
+                             style="@GetItemRowStyle(item.Id)"
                              role="button"
                              tabindex="0"
                              @onclick="() => OnRowClickAsync(item)"
                              @ontouchstart="e => OnItemTouchStart(item, e)"
+                             @ontouchmove="e => OnItemTouchMove(item, e)"
                              @ontouchend="e => OnItemTouchEndAsync(item, e)"
+                             @ontouchcancel="() => OnItemTouchCancel(item)"
                              @onkeydown="e => OnRowKeyDownAsync(item, e)">
                             <span class="jf-item-label">
                                 @item.Name
@@ -177,6 +273,15 @@ else
     private bool _addBusy;
     private bool _undoBusy;
     private bool IsActionBusy => _busyItemId.HasValue || _addBusy || _undoBusy;
+    private bool _canShare;
+    private bool _sharePanelOpen;
+    private bool _shareBusy;
+    private bool _shareSearchBusy;
+    private string _shareQuery = string.Empty;
+    private List<ShareUserSearchResultDto> _shareCandidates = [];
+    private List<ProductListShareMemberDto> _shareMembers = [];
+    private Guid? _selectedShareUserId;
+    private CancellationTokenSource? _shareSearchCts;
     private Guid? _touchItemId;
     private double _touchStartX;
     private double _touchStartY;
@@ -184,6 +289,8 @@ else
     private DateTimeOffset _suppressTapUntilUtc;
     private const double SwipeThresholdPx = 70;
     private const double SwipeVerticalTolerancePx = 36;
+    private const double SwipeMaxOffsetPx = 120;
+    private readonly Dictionary<Guid, double> _swipeOffsetByItemId = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -280,7 +387,10 @@ else
 
             _detail = await response.Content.ReadFromJsonAsync<ProductListDetailDto>();
             if (_detail is not null)
+            {
                 await LastOpenedList.SetAsync(Id);
+                await LoadShareMembersOrDisableAsync();
+            }
         }
         finally
         {
@@ -376,6 +486,23 @@ else
         _touchItemId = item.Id;
         _touchStartX = touch.ClientX;
         _touchStartY = touch.ClientY;
+        _swipeOffsetByItemId[item.Id] = 0;
+    }
+
+    private void OnItemTouchMove(ProductListItemDto item, TouchEventArgs e)
+    {
+        if (_touchItemId != item.Id || e.Touches is null || e.Touches.Length == 0)
+            return;
+
+        var touch = e.Touches[0];
+        var deltaX = touch.ClientX - _touchStartX;
+        var deltaY = touch.ClientY - _touchStartY;
+
+        if (Math.Abs(deltaY) > SwipeVerticalTolerancePx)
+            return;
+
+        var clamped = Math.Max(-SwipeMaxOffsetPx, Math.Min(SwipeMaxOffsetPx, deltaX));
+        _swipeOffsetByItemId[item.Id] = clamped;
     }
 
     private async Task OnItemTouchEndAsync(ProductListItemDto item, TouchEventArgs e)
@@ -392,6 +519,7 @@ else
         var deltaY = touch.ClientY - _touchStartY;
         var absX = Math.Abs(deltaX);
         var absY = Math.Abs(deltaY);
+        _swipeOffsetByItemId[item.Id] = 0;
 
         if (absX < SwipeThresholdPx || absY > SwipeVerticalTolerancePx)
             return;
@@ -404,6 +532,198 @@ else
         }
 
         await DeleteItemAsync(item);
+    }
+
+    private void OnItemTouchCancel(ProductListItemDto item)
+    {
+        if (_touchItemId == item.Id)
+            _touchItemId = null;
+
+        _swipeOffsetByItemId[item.Id] = 0;
+    }
+
+    private string GetItemRowStyle(Guid itemId)
+    {
+        if (!_swipeOffsetByItemId.TryGetValue(itemId, out var offset) || Math.Abs(offset) < 0.5)
+            return "touch-action: pan-y;";
+
+        return $"touch-action: pan-y; transform: translateX({offset:0.#}px); transition: transform 0.06s linear;";
+    }
+
+    private async Task ToggleSharePanelAsync()
+    {
+        _sharePanelOpen = !_sharePanelOpen;
+        if (_sharePanelOpen)
+            await LoadShareMembersOrDisableAsync();
+    }
+
+    private void CloseSharePanel()
+    {
+        _sharePanelOpen = false;
+        _shareQuery = string.Empty;
+        _shareCandidates.Clear();
+        _selectedShareUserId = null;
+        _shareSearchBusy = false;
+        _shareSearchCts?.Cancel();
+    }
+
+    private async Task LoadShareMembersOrDisableAsync()
+    {
+        var client = HttpClientFactory.CreateClient("Api");
+        var response = await client.GetAsync($"api/product-lists/{Id}/shares");
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        if (!response.IsSuccessStatusCode)
+        {
+            _canShare = false;
+            _sharePanelOpen = false;
+            _shareMembers.Clear();
+            return;
+        }
+
+        _canShare = true;
+        _shareMembers = await response.Content.ReadFromJsonAsync<List<ProductListShareMemberDto>>() ?? [];
+    }
+
+    private void SelectShareCandidate(Guid userId) => _selectedShareUserId = userId;
+
+    private async Task OnShareQueryChanged(ChangeEventArgs args)
+    {
+        _shareQuery = args.Value?.ToString() ?? string.Empty;
+        _selectedShareUserId = null;
+
+        _shareSearchCts?.Cancel();
+        _shareSearchCts?.Dispose();
+        _shareSearchCts = new CancellationTokenSource();
+        var token = _shareSearchCts.Token;
+        var term = _shareQuery.Trim();
+
+        if (term.Length < 3)
+        {
+            _shareCandidates.Clear();
+            _shareSearchBusy = false;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        _shareSearchBusy = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            await Task.Delay(250, token);
+            var client = HttpClientFactory.CreateClient("Api");
+            var response = await client.GetAsync($"api/product-lists/users/search?query={Uri.EscapeDataString(term)}", token);
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _shareCandidates.Clear();
+                return;
+            }
+
+            _shareCandidates = await response.Content.ReadFromJsonAsync<List<ShareUserSearchResultDto>>(token) ?? [];
+            if (_shareCandidates.Count == 1)
+            {
+                _selectedShareUserId = _shareCandidates[0].Id;
+            }
+            else if (_selectedShareUserId is { } selectedId && _shareCandidates.All(c => c.Id != selectedId))
+            {
+                _selectedShareUserId = null;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        finally
+        {
+            _shareSearchBusy = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ShareSelectedAsync()
+    {
+        var selectedUserId = _selectedShareUserId ?? _shareCandidates.FirstOrDefault()?.Id;
+        if (selectedUserId is null)
+        {
+            _error = "Select account to share.";
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        _shareBusy = true;
+        _error = null;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            var client = HttpClientFactory.CreateClient("Api");
+            var response = await client.PostAsJsonAsync(
+                $"api/product-lists/{Id}/shares",
+                new ShareProductListRequest { UserId = selectedUserId.Value });
+
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var apiText = await response.Content.ReadAsStringAsync();
+                _error = string.IsNullOrWhiteSpace(apiText) ? "Could not share list." : apiText;
+                return;
+            }
+
+            _shareQuery = string.Empty;
+            _shareCandidates.Clear();
+            _selectedShareUserId = null;
+            await LoadShareMembersOrDisableAsync();
+        }
+        finally
+        {
+            _shareBusy = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task UnshareAsync(Guid userId)
+    {
+        _shareBusy = true;
+        _error = null;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            var client = HttpClientFactory.CreateClient("Api");
+            var response = await client.DeleteAsync($"api/product-lists/{Id}/shares/{userId}");
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
+            {
+                Navigation.NavigateTo("/login");
+                return;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _error = "Could not remove access.";
+                return;
+            }
+
+            _shareMembers = _shareMembers.Where(m => m.UserId != userId).ToList();
+        }
+        finally
+        {
+            _shareBusy = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private void SuppressTap(Guid itemId)
@@ -643,6 +963,10 @@ else
 
     public async ValueTask DisposeAsync()
     {
+        _shareSearchCts?.Cancel();
+        _shareSearchCts?.Dispose();
+        _shareSearchCts = null;
+
         _toastCts?.Cancel();
         _toastCts?.Dispose();
         _toastCts = null;

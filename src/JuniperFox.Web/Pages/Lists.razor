@@ -19,9 +19,6 @@
     </div>
 }
 
-<h1>Lists</h1>
-<p class="jf-muted" style="margin-bottom: 1.25rem;">Pick a list or create a new one.</p>
-
 @if (!string.IsNullOrEmpty(_error))
 {
     <p class="jf-error">@_error</p>
@@ -43,7 +40,6 @@ else
     <div class="jf-stack-tight" style="margin-bottom: 1.5rem;">
         @if (ownLists.Count > 0)
         {
-            <h2>My lists</h2>
             @foreach (var l in ownLists)
             {
                 <div @key="l.Id" class="jf-list-row jf-lists-row">
@@ -51,14 +47,6 @@ else
                         <span style="font-weight: 500;">@l.Title</span>
                         <span class="jf-muted" style="font-size: 1.25rem;" aria-hidden="true">›</span>
                     </NavLink>
-                    <button type="button"
-                            class="jf-btn jf-btn-ghost"
-                            title="Share list"
-                            aria-label="Share list"
-                            disabled="@(IsActionBusy || _shareBusy)"
-                            @onclick="() => OpenSharePanel(l.Id)">
-                        Share
-                    </button>
                     <button type="button"
                             class="jf-item-delete"
                             title="Delete list"
@@ -71,94 +59,17 @@ else
                     </button>
                 </div>
 
-                @if (_shareListId == l.Id)
-                {
-                    <div class="jf-card jf-stack-tight" style="margin-top: -0.5rem; margin-bottom: 0.35rem;">
-                        <div class="jf-field">
-                            <label>Find account to share with</label>
-                            <input class="jf-input"
-                                   value="@_shareQuery"
-                                   placeholder="At least 3 characters"
-                                   @oninput="OnShareQueryChanged"
-                                   disabled="@_shareBusy" />
-                        </div>
-                        @if (_shareQuery.Trim().Length > 0 && _shareQuery.Trim().Length < 3)
-                        {
-                            <p class="jf-muted" style="margin: 0;">Type at least 3 symbols.</p>
-                        }
-                        @if (_shareSearchBusy)
-                        {
-                            <p class="jf-muted" style="margin: 0;">Searching…</p>
-                        }
-                        else if (_shareQuery.Trim().Length >= 3)
-                        {
-                            @if (_shareCandidates.Count == 0)
-                            {
-                                <p class="jf-muted" style="margin: 0;">No users found.</p>
-                            }
-                            else
-                            {
-                                <div class="jf-stack-tight">
-                                    @foreach (var user in _shareCandidates)
-                                    {
-                                        var selected = _selectedShareUserId == user.Id;
-                                        <button type="button"
-                                                class="jf-btn @(selected ? "jf-btn-primary" : "jf-btn-ghost")"
-                                                style="justify-content: flex-start;"
-                                                @onclick="() => SelectShareCandidate(user.Id)">
-                                            @user.UserName
-                                        </button>
-                                    }
-                                </div>
-                            }
-                        }
-                        @if (_shareMembers.Count > 0)
-                        {
-                            <div class="jf-stack-tight" style="margin-top: 0.5rem;">
-                                <p class="jf-muted" style="margin: 0;">Already shared with</p>
-                                @foreach (var member in _shareMembers)
-                                {
-                                    <div class="jf-list-row" style="margin-bottom: 0;">
-                                        <span>@member.UserName</span>
-                                        <button type="button"
-                                                class="jf-btn jf-btn-ghost"
-                                                disabled="@_shareBusy"
-                                                @onclick="() => UnshareAsync(member.UserId)">
-                                            Unshare
-                                        </button>
-                                    </div>
-                                }
-                            </div>
-                        }
-                        <div style="display: flex; gap: 0.75rem;">
-                            <button type="button"
-                                    class="jf-btn jf-btn-primary"
-                                    disabled="@(_selectedShareUserId is null || _shareBusy)"
-                                    @onclick="ShareSelectedAsync">
-                                OK
-                            </button>
-                            <button type="button"
-                                    class="jf-btn jf-btn-ghost"
-                                    disabled="@_shareBusy"
-                                    @onclick="CloseSharePanel">
-                                Cancel
-                            </button>
-                        </div>
-                    </div>
-                }
             }
         }
 
         @if (sharedLists.Count > 0)
         {
-            <h2 style="margin-top: 0.35rem;">Shared with me</h2>
             @foreach (var l in sharedLists)
             {
                 <div @key="l.Id" class="jf-list-row jf-lists-row">
                     <NavLink href="@($"/lists/{l.Id}")" class="jf-lists-row-link">
                         <span style="display: flex; flex-direction: column;">
                             <span style="font-weight: 500;">@l.Title</span>
-                            <span class="jf-muted" style="font-size: 0.8125rem;">Shared by @l.SharedByUserName</span>
                         </span>
                         <span class="jf-muted" style="font-size: 1.25rem;" aria-hidden="true">›</span>
                     </NavLink>
@@ -193,17 +104,10 @@ else
     private string _toastMessage = string.Empty;
     private ProductListDetailDto? _undoListSnapshot;
     private CancellationTokenSource? _toastCts;
-    private CancellationTokenSource? _shareSearchCts;
     private Guid? _busyDeletingId;
     private bool _busyCreating;
     private bool _busyUndo;
     private bool _shareBusy;
-    private bool _shareSearchBusy;
-    private Guid? _shareListId;
-    private string _shareQuery = string.Empty;
-    private List<ShareUserSearchResultDto> _shareCandidates = [];
-    private List<ProductListShareMemberDto> _shareMembers = [];
-    private Guid? _selectedShareUserId;
     private bool IsActionBusy => _busyCreating || _busyDeletingId.HasValue || _busyUndo;
 
     protected override async Task OnInitializedAsync()
@@ -229,165 +133,6 @@ else
         }
 
         _lists = await response.Content.ReadFromJsonAsync<List<ProductListSummaryDto>>();
-    }
-
-    private async Task OpenSharePanel(Guid listId)
-    {
-        _shareListId = listId;
-        _shareQuery = string.Empty;
-        _shareCandidates.Clear();
-        _shareMembers.Clear();
-        _selectedShareUserId = null;
-        _shareSearchBusy = false;
-        _shareSearchCts?.Cancel();
-
-        var client = HttpClientFactory.CreateClient("Api");
-        var response = await client.GetAsync($"api/product-lists/{listId}/shares");
-        if (response.StatusCode == HttpStatusCode.Unauthorized)
-        {
-            Navigation.NavigateTo("/login");
-            return;
-        }
-
-        if (!response.IsSuccessStatusCode)
-            return;
-
-        _shareMembers = await response.Content.ReadFromJsonAsync<List<ProductListShareMemberDto>>() ?? [];
-    }
-
-    private void CloseSharePanel()
-    {
-        _shareSearchCts?.Cancel();
-        _shareListId = null;
-        _shareQuery = string.Empty;
-        _shareCandidates.Clear();
-        _shareMembers.Clear();
-        _selectedShareUserId = null;
-        _shareSearchBusy = false;
-    }
-
-    private void SelectShareCandidate(Guid userId) => _selectedShareUserId = userId;
-
-    private async Task OnShareQueryChanged(ChangeEventArgs args)
-    {
-        _shareQuery = args.Value?.ToString() ?? string.Empty;
-        _selectedShareUserId = null;
-
-        _shareSearchCts?.Cancel();
-        _shareSearchCts?.Dispose();
-        _shareSearchCts = new CancellationTokenSource();
-        var token = _shareSearchCts.Token;
-        var term = _shareQuery.Trim();
-
-        if (term.Length < 3)
-        {
-            _shareCandidates.Clear();
-            _shareSearchBusy = false;
-            await InvokeAsync(StateHasChanged);
-            return;
-        }
-
-        _shareSearchBusy = true;
-        await InvokeAsync(StateHasChanged);
-
-        try
-        {
-            await Task.Delay(250, token);
-            var client = HttpClientFactory.CreateClient("Api");
-            var response = await client.GetAsync($"api/product-lists/users/search?query={Uri.EscapeDataString(term)}", token);
-            if (response.StatusCode == HttpStatusCode.Unauthorized)
-            {
-                Navigation.NavigateTo("/login");
-                return;
-            }
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _shareCandidates.Clear();
-                return;
-            }
-
-            _shareCandidates = await response.Content.ReadFromJsonAsync<List<ShareUserSearchResultDto>>(token) ?? [];
-        }
-        catch (OperationCanceledException)
-        {
-            return;
-        }
-        finally
-        {
-            _shareSearchBusy = false;
-            await InvokeAsync(StateHasChanged);
-        }
-    }
-
-    private async Task ShareSelectedAsync()
-    {
-        if (_shareListId is null || _selectedShareUserId is null)
-            return;
-
-        _shareBusy = true;
-        _error = null;
-        await InvokeAsync(StateHasChanged);
-        try
-        {
-            var client = HttpClientFactory.CreateClient("Api");
-            var response = await client.PostAsJsonAsync(
-                $"api/product-lists/{_shareListId}/shares",
-                new ShareProductListRequest { UserId = _selectedShareUserId.Value });
-
-            if (response.StatusCode == HttpStatusCode.Unauthorized)
-            {
-                Navigation.NavigateTo("/login");
-                return;
-            }
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _error = "Could not share list.";
-                return;
-            }
-
-            CloseSharePanel();
-            await LoadAsync();
-        }
-        finally
-        {
-            _shareBusy = false;
-            await InvokeAsync(StateHasChanged);
-        }
-    }
-
-    private async Task UnshareAsync(Guid userId)
-    {
-        if (_shareListId is null)
-            return;
-
-        _shareBusy = true;
-        _error = null;
-        await InvokeAsync(StateHasChanged);
-        try
-        {
-            var client = HttpClientFactory.CreateClient("Api");
-            var response = await client.DeleteAsync($"api/product-lists/{_shareListId}/shares/{userId}");
-            if (response.StatusCode == HttpStatusCode.Unauthorized)
-            {
-                Navigation.NavigateTo("/login");
-                return;
-            }
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _error = "Could not remove access.";
-                return;
-            }
-
-            _shareMembers = _shareMembers.Where(m => m.UserId != userId).ToList();
-        }
-        finally
-        {
-            _shareBusy = false;
-            await InvokeAsync(StateHasChanged);
-        }
     }
 
     private async Task LeaveSharedListAsync(Guid listId)
@@ -649,8 +394,6 @@ else
 
     public void Dispose()
     {
-        _shareSearchCts?.Cancel();
-        _shareSearchCts?.Dispose();
         _toastCts?.Cancel();
         _toastCts?.Dispose();
     }
