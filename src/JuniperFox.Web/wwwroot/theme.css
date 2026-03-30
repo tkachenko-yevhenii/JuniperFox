@@ -595,6 +595,16 @@ body.jf-keyboard-open .jf-app-shell {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
+@media (display-mode: standalone) {
+  body {
+    overscroll-behavior: none;
+  }
+
+  .jf-app-shell {
+    min-height: 100svh;
+  }
+}
+
 .jf-tab {
   flex: 1;
   display: flex;
