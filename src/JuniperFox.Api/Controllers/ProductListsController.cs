@@ -244,24 +244,7 @@ public sealed class ProductListsController : ControllerBase
             return NotFound();
 
         if (item.IsPurchased != request.IsPurchased)
-        {
-            if (request.IsPurchased)
-            {
-                var minPurchased = await _db.ProductListItems
-                    .Where(i => i.ProductListId == listId && i.Id != itemId && i.IsPurchased)
-                    .MinAsync(i => (int?)i.SortOrder, cancellationToken) ?? 0;
-                item.SortOrder = minPurchased - 1;
-            }
-            else
-            {
-                var minOpen = await _db.ProductListItems
-                    .Where(i => i.ProductListId == listId && i.Id != itemId && !i.IsPurchased)
-                    .MinAsync(i => (int?)i.SortOrder, cancellationToken) ?? 0;
-                item.SortOrder = minOpen - 1;
-            }
-
             item.IsPurchased = request.IsPurchased;
-        }
 
         await _db.SaveChangesAsync(cancellationToken);
         await _hub.Clients.Group(ListHubGroups.ForList(listId)).SendAsync("ListChanged", listId, cancellationToken);

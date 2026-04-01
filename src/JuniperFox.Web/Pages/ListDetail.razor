@@ -136,13 +136,15 @@ else
 
             @if (_detail.Items.Count > 0)
             {
-                var hasOpen = _detail.Items.Any(i => !i.IsPurchased);
-                var hasDone = _detail.Items.Any(i => i.IsPurchased);
+                var openItems = _detail.Items.Where(i => !i.IsPurchased).ToList();
+                var doneItems = _detail.Items.Where(i => i.IsPurchased).ToList();
+                var hasOpen = openItems.Count > 0;
+                var hasDone = doneItems.Count > 0;
                 <div class="jf-list-detail-items">
-                    @foreach (var item in _detail.Items.Where(i => !i.IsPurchased))
+                    @foreach (var item in openItems)
                     {
                         <div @key="item.Id"
-                             class="jf-list-row jf-item-row @(item.IsPurchased ? "jf-item-purchased" : null) @(_busyItemId == item.Id ? "jf-item-row-busy" : null)"
+                             class="jf-list-row jf-item-row jf-item-row-animated @(item.IsPurchased ? "jf-item-purchased" : null) @(_busyItemId == item.Id ? "jf-item-row-busy" : null)"
                              style="@GetItemRowStyle(item.Id)"
                              role="button"
                              tabindex="0"
@@ -154,9 +156,9 @@ else
                              @onkeydown="e => OnRowKeyDownAsync(item, e)">
                             <span class="jf-item-label">
                                 @item.Name
-                                @if (item.Quantity is { } q)
+                                @if (!string.IsNullOrWhiteSpace(item.Quantity))
                                 {
-                                    <span class="jf-muted"> ×@q</span>
+                                    <span class="jf-muted"> · @item.Quantity</span>
                                 }
                             </span>
                             <button type="button"
@@ -175,10 +177,10 @@ else
                     {
                         <div class="jf-item-group-gap" aria-hidden="true"></div>
                     }
-                    @foreach (var item in _detail.Items.Where(i => i.IsPurchased))
+                    @foreach (var item in doneItems)
                     {
                         <div @key="item.Id"
-                             class="jf-list-row jf-item-row jf-item-purchased @(_busyItemId == item.Id ? "jf-item-row-busy" : null)"
+                             class="jf-list-row jf-item-row jf-item-row-animated jf-item-purchased @(_busyItemId == item.Id ? "jf-item-row-busy" : null)"
                              style="@GetItemRowStyle(item.Id)"
                              role="button"
                              tabindex="0"
@@ -190,9 +192,9 @@ else
                              @onkeydown="e => OnRowKeyDownAsync(item, e)">
                             <span class="jf-item-label">
                                 @item.Name
-                                @if (item.Quantity is { } q)
+                                @if (!string.IsNullOrWhiteSpace(item.Quantity))
                                 {
-                                    <span class="jf-muted"> ×@q</span>
+                                    <span class="jf-muted"> · @item.Quantity</span>
                                 }
                             </span>
                             <button type="button"
@@ -211,39 +213,53 @@ else
             }
         </div>
 
-        <div id="list-add-form" class="jf-list-detail-dock">
-            <button type="button"
-                    class="jf-list-detail-add-toggle"
-                    disabled="@IsActionBusy"
-                    aria-expanded="@_addPanelOpen"
-                    aria-controls="list-add-form-body"
-                    aria-label="Toggle add form"
-                    @onclick="ToggleAddPanel">
-                <svg class="jf-list-detail-add-chevron @(!_addPanelOpen ? "jf-list-detail-add-chevron--open" : null)"
-                     viewBox="0 0 24 24"
-                     fill="none"
-                     stroke="currentColor"
-                     stroke-width="2"
-                     aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                </svg>
-            </button>
+        <button type="button"
+                class="jf-fab-add-item"
+                aria-label="Add item"
+                @onclick="OpenAddModal">
+            <span aria-hidden="true">+</span>
+        </button>
 
-            @if (_addPanelOpen)
-            {
-                <div id="list-add-form-body" class="jf-card jf-list-detail-add-form">
-                    <div class="jf-list-detail-add-inline">
-                        <div class="jf-field jf-field-unlabeled">
-                            <InputText class="jf-input" @bind-Value="_itemName" placeholder="Name" aria-label="Item name" disabled="@IsActionBusy" />
+        @if (_addModalOpen)
+        {
+            <div class="jf-modal-backdrop" role="dialog" aria-modal="true">
+                <div class="jf-card jf-modal">
+                    <h2>Add item</h2>
+                    <div class="jf-stack-tight">
+                        <div class="jf-field">
+                            <label for="add-item-name">Name</label>
+                            <input id="add-item-name"
+                                   class="jf-input"
+                                   value="@_itemName"
+                                   placeholder="e.g. Milk"
+                                   disabled="@_addBusy"
+                                   @oninput="e => _itemName = e.Value?.ToString() ?? string.Empty" />
                         </div>
-                        <div class="jf-field jf-field-qty jf-field-unlabeled">
-                            <InputNumber class="jf-input" @bind-Value="_quantity" aria-label="Quantity (optional)" disabled="@IsActionBusy" />
+                        <div class="jf-field">
+                            <label for="add-item-quantity">Amount / note (optional)</label>
+                            <InputText id="add-item-quantity"
+                                       class="jf-input"
+                                       @bind-Value="_quantityText"
+                                       placeholder="e.g. 15 liters, 8 pcs"
+                                       disabled="@_addBusy" />
+                        </div>
+                        <div class="jf-modal-actions">
+                            <button type="button"
+                                    class="jf-btn jf-btn-primary"
+                                    @onclick="AddItemAsync">
+                                Add
+                            </button>
+                            <button type="button"
+                                    class="jf-btn jf-btn-ghost"
+                                    disabled="@_addBusy"
+                                    @onclick="CloseAddModal">
+                                Cancel
+                            </button>
                         </div>
                     </div>
-                    <button type="button" class="jf-btn jf-btn-primary jf-list-detail-add-submit" disabled="@IsActionBusy" @onclick="AddItemAsync">Add</button>
                 </div>
-            }
-        </div>
+            </div>
+        }
     </div>
 }
 
@@ -252,7 +268,7 @@ else
 
     private ProductListDetailDto? _detail;
     private string _itemName = string.Empty;
-    private int? _quantity;
+    private string _quantityText = string.Empty;
     private string? _error;
     private Guid? _busyItemId;
     private HubConnection? _hubConnection;
@@ -266,13 +282,13 @@ else
     private bool _toastVisible;
     private string _toastMessage = string.Empty;
     private string? _undoName;
-    private int? _undoQuantity;
+    private string? _undoQuantity;
     private CancellationTokenSource? _toastCts;
 
-    private bool _addPanelOpen = true;
+    private bool _addModalOpen;
     private bool _addBusy;
     private bool _undoBusy;
-    private bool IsActionBusy => _busyItemId.HasValue || _addBusy || _undoBusy;
+    private bool IsActionBusy => _addBusy || _undoBusy;
     private bool _canShare;
     private bool _sharePanelOpen;
     private bool _shareBusy;
@@ -298,7 +314,14 @@ else
         await ConnectRealtimeAsync();
     }
 
-    private void ToggleAddPanel() => _addPanelOpen = !_addPanelOpen;
+    private void OpenAddModal() => _addModalOpen = true;
+
+    private void CloseAddModal()
+    {
+        _addModalOpen = false;
+        _itemName = string.Empty;
+        _quantityText = string.Empty;
+    }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -746,13 +769,47 @@ else
 
     private async Task TogglePurchasedAsync(ProductListItemDto item)
     {
-        if (_busyItemId.HasValue)
-            return;
+        // Оптимистичное обновление UI: сразу переключаем и пересортировываем локальный список.
+        ApplyOptimisticToggle(item.Id);
+        await InvokeAsync(StateHasChanged);
 
-        await SetPurchasedAsync(item.Id, !item.IsPurchased);
+        // Запрос к серверу — отдельно, не блокирует интерфейс.
+        _ = SetPurchasedOnServerAsync(item.Id, !item.IsPurchased);
     }
 
-    private async Task SetPurchasedAsync(Guid itemId, bool isPurchased)
+    private void ApplyOptimisticToggle(Guid itemId)
+    {
+        if (_detail is null)
+            return;
+
+        var items = _detail.Items.ToList();
+        var index = items.FindIndex(i => i.Id == itemId);
+        if (index < 0)
+            return;
+
+        var current = items[index];
+        items[index] = new ProductListItemDto
+        {
+            Id = current.Id,
+            Name = current.Name,
+            SortOrder = current.SortOrder,
+            Quantity = current.Quantity,
+            IsPurchased = !current.IsPurchased,
+        };
+
+        var open = items.Where(i => !i.IsPurchased).OrderBy(i => i.SortOrder).ToList();
+        var done = items.Where(i => i.IsPurchased).OrderBy(i => i.SortOrder).ToList();
+
+        _detail = new ProductListDetailDto
+        {
+            Id = _detail.Id,
+            Title = _detail.Title,
+            CreatedAtUtc = _detail.CreatedAtUtc,
+            Items = [.. open, .. done],
+        };
+    }
+
+    private async Task SetPurchasedOnServerAsync(Guid itemId, bool isPurchased)
     {
         _busyItemId = itemId;
         _error = null;
@@ -773,10 +830,11 @@ else
             if (!response.IsSuccessStatusCode)
             {
                 _error = "Could not update item.";
+                // В случае ошибки перезагружаем список, чтобы вернуть корректное состояние.
+                await LoadAsync();
                 return;
             }
 
-            await LoadAsync();
             await PublishCrossTabListChangedAsync();
         }
         finally
@@ -788,18 +846,40 @@ else
 
     private async Task DeleteItemAsync(ProductListItemDto item)
     {
-        if (_busyItemId.HasValue)
+        // Оптимистично убираем элемент из локального списка и сразу показываем toast.
+        ApplyOptimisticDelete(item.Id);
+        await ShowDeletedToastAsync(item.Name, item.Quantity);
+        await InvokeAsync(StateHasChanged);
+
+        // Удаление на сервере — в фоне.
+        _ = DeleteItemOnServerAsync(item.Id);
+    }
+
+    private void ApplyOptimisticDelete(Guid itemId)
+    {
+        if (_detail is null)
             return;
 
-        _busyItemId = item.Id;
+        var items = _detail.Items.Where(i => i.Id != itemId).ToList();
+
+        _detail = new ProductListDetailDto
+        {
+            Id = _detail.Id,
+            Title = _detail.Title,
+            CreatedAtUtc = _detail.CreatedAtUtc,
+            Items = items,
+        };
+    }
+
+    private async Task DeleteItemOnServerAsync(Guid itemId)
+    {
+        _busyItemId = itemId;
         _error = null;
-        var name = item.Name;
-        var qty = item.Quantity;
         await InvokeAsync(StateHasChanged);
         try
         {
             var client = HttpClientFactory.CreateClient("Api");
-            var response = await client.DeleteAsync($"api/product-lists/{Id}/items/{item.Id}");
+            var response = await client.DeleteAsync($"api/product-lists/{Id}/items/{itemId}");
 
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
@@ -810,12 +890,15 @@ else
             if (!response.IsSuccessStatusCode)
             {
                 _error = "Could not delete item.";
+                // В случае ошибки перезагружаем список и сбрасываем данные для Undo.
+                _toastVisible = false;
+                _undoName = null;
+                _undoQuantity = null;
+                await LoadAsync();
                 return;
             }
 
-            await LoadAsync();
             await PublishCrossTabListChangedAsync();
-            await ShowDeletedToastAsync(name, qty);
         }
         finally
         {
@@ -824,7 +907,7 @@ else
         }
     }
 
-    private async Task ShowDeletedToastAsync(string name, int? quantity)
+    private async Task ShowDeletedToastAsync(string name, string? quantity)
     {
         _toastCts?.Cancel();
         _toastCts?.Dispose();
@@ -911,6 +994,48 @@ else
             return;
 
         _error = null;
+        var name = _itemName.Trim();
+        var quantity = string.IsNullOrWhiteSpace(_quantityText) ? null : _quantityText.Trim();
+
+        // Оптимистично добавляем элемент в локальный список и закрываем модалку.
+        ApplyOptimisticAdd(name, quantity);
+        _itemName = string.Empty;
+        _quantityText = string.Empty;
+        _addModalOpen = false;
+        await InvokeAsync(StateHasChanged);
+
+        // Добавление на сервере — в фоне.
+        _ = AddItemOnServerAsync(name, quantity);
+    }
+
+    private void ApplyOptimisticAdd(string name, string? quantity)
+    {
+        if (_detail is null)
+            return;
+
+        var items = _detail.Items.ToList();
+        var nextSortOrder = items.Count == 0 ? 0 : items.Max(i => i.SortOrder) + 1;
+
+        var added = new ProductListItemDto
+        {
+            Id = Guid.NewGuid(),
+            Name = name,
+            SortOrder = nextSortOrder,
+            Quantity = quantity,
+            IsPurchased = false,
+        };
+
+        _detail = new ProductListDetailDto
+        {
+            Id = _detail.Id,
+            Title = _detail.Title,
+            CreatedAtUtc = _detail.CreatedAtUtc,
+            Items = [.. items, added],
+        };
+    }
+
+    private async Task AddItemOnServerAsync(string name, string? quantity)
+    {
         _addBusy = true;
         await InvokeAsync(StateHasChanged);
         var client = HttpClientFactory.CreateClient("Api");
@@ -920,8 +1045,8 @@ else
                 $"api/product-lists/{Id}/items",
                 new AddProductListItemRequest
                 {
-                    Name = _itemName.Trim(),
-                    Quantity = _quantity,
+                    Name = name,
+                    Quantity = quantity,
                 });
 
             if (response.StatusCode == HttpStatusCode.Unauthorized)
@@ -933,24 +1058,10 @@ else
             if (!response.IsSuccessStatusCode)
             {
                 _error = "Could not add item.";
+                await LoadAsync();
                 return;
             }
 
-            var added = await response.Content.ReadFromJsonAsync<ProductListItemDto>();
-            if (added is not null && _detail is not null)
-            {
-                _detail = new ProductListDetailDto
-                {
-                    Id = _detail.Id,
-                    Title = _detail.Title,
-                    CreatedAtUtc = _detail.CreatedAtUtc,
-                    Items = [.._detail.Items, added],
-                };
-                await InvokeAsync(StateHasChanged);
-            }
-
-            _itemName = string.Empty;
-            _quantity = null;
             await LoadAsync();
             await PublishCrossTabListChangedAsync();
         }

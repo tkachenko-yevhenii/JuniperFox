@@ -240,12 +240,17 @@ a:hover {
 .jf-item-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  width: 100%;
   gap: 0.75rem;
   cursor: pointer;
   user-select: none;
   touch-action: pan-y;
   will-change: transform;
-  transition: transform 0.12s ease;
+}
+
+.jf-item-row-animated {
+  animation: jf-item-fade-in 0.12s ease-out;
 }
 
 .jf-item-row:hover {
@@ -309,6 +314,32 @@ a:hover {
 
 .jf-item-purchased {
   opacity: 0.85;
+}
+
+.jf-item-row-animated.jf-item-purchased {
+  animation: jf-item-slide-down 0.18s ease-out;
+}
+
+@keyframes jf-item-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes jf-item-slide-down {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0.9;
+    transform: translateY(10px);
+  }
 }
 
 .jf-toast-host {
@@ -427,6 +458,63 @@ a:hover {
   min-height: 35vh;
 }
 
+.jf-fab-add-item {
+  position: fixed;
+  right: max(1.25rem, env(safe-area-inset-right, 0px) + 1rem);
+  bottom: max(1.5rem, env(safe-area-inset-bottom, 0px) + 1rem);
+  z-index: 2500;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 999px;
+  border: none;
+  background: var(--jf-accent);
+  color: #0a0a0c;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.65);
+}
+
+.jf-fab-add-item:hover {
+  background: var(--jf-accent-hover);
+}
+
+.jf-fab-add-item:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.jf-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(10, 10, 12, 0.75);
+  backdrop-filter: blur(6px);
+}
+
+.jf-modal {
+  width: 100%;
+  max-width: 22rem;
+}
+
+.jf-modal h2 {
+  margin-bottom: 0.75rem;
+}
+
+.jf-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
 .jf-list-detail-dock {
   flex-shrink: 0;
   margin-top: 0;
@@ -459,6 +547,16 @@ a:hover {
   display: flex;
   flex-direction: column;
   margin-top: 0.15rem;
+}
+
+/* Safety net: если по какой-то причине класс строки не проставился,
+   гарантируем, что прямые дети списка всё равно ведут себя как flex-строки. */
+.jf-list-detail-items > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 0.75rem;
 }
 
 .jf-list-detail-title-row {
@@ -532,7 +630,7 @@ a:hover {
 }
 
 /* Compact rows: no card chrome, thin divider between lines */
-.jf-list-detail-scroll .jf-list-row.jf-item-row {
+.jf-list-detail-scroll .jf-list-row {
   background: transparent;
   border: none;
   border-radius: 0;
@@ -542,7 +640,7 @@ a:hover {
   gap: 0.6rem;
 }
 
-.jf-list-detail-scroll .jf-list-row.jf-item-row:last-child {
+.jf-list-detail-scroll .jf-list-row:last-child {
   border-bottom: none;
   margin-bottom: 0;
 }
